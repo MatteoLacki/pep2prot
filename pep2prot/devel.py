@@ -3,7 +3,7 @@
 
 import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
-from networkx import Graph, connected_components
+from networkx import connected_components
 import networkx as nx
 import numpy as np
 from pathlib import Path
@@ -11,8 +11,9 @@ import pandas as pd
 from pandas import DataFrame
 from itertools import islice
 
-from pep2prot.pep_prot_graph import PepProtGraph
-from pep2prot.bipartite_graph import BiGraph
+from pep2prot.bipartite_graph import ProtPepGraph
+
+
 
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
@@ -22,6 +23,8 @@ path = Path(path).expanduser()
 D = pd.read_csv(path, encoding = "ISO-8859-1")
 verbose = True
 peps_per_prot = 2
+min_pepNo_per_prot = 2
+
 
 # preprocessing
 D.modifier = D.modifier.fillna('')
@@ -32,88 +35,66 @@ D['pep'] = np.where(D['modifier'], D['sequence'] + "_" + D['modifier'], D['seque
 pep_prots = ['pep','prots']
 D.prots = D.prots.str.split(',')
 
-# G = PepProtGraph(zip(D.pep, D.prots))
-# G.del_prots_with_little_peps(2)
-# prothoods = defaultdict(list)
-# for p in G._peps(): #can there be peptide duplicates? No.
-#     prot_neighbors = frozenset(G[p])
-#     prothoods[prot_neighbors].append(p[1:])
-# F = BiGraph((r, " | ".join(ps)) for rs, ps in prothoods.items() for r in rs)
-# # again!
+# Fun begins here:   peptide BLUE   protein: RED
+G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
+prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
+G.remove_nodes_from(prots_without_enough_peps)
+H = G.form_groups()
+R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
+                       for r in H[pH] for p in H[r]) # result graph
+I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R) # problematic assignments
+for e in I.AB():
+    R.add_AB_edge(*e)
+
+# reporting part
+
+it = R.components()
+cc = next(it)
+r = next(cc.B())
+for i, cc in enumerate(R.components()):
 
 
-# # simplifying the graph
-# G = BiGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
-# prothoods = defaultdict(list)
-# for p in G.B():
-#     prothoods[frozenset(G[p])].append(p)
-# F = BiGraph((r, frozenset(ps)) for rs, ps in prothoods.items() for r in rs)
-# pepgrouphoods = defaultdict(list)
-# for r in F.A():
-#     pepgrouphoods[frozenset(F[r])].append(r)
-# H = BiGraph((frozenset(rs), ps) for ps, rs in pepgrouphoods.items())
-
-# print(len(H))
-# print(len(list(H.A())))
-# print(len(list(H.B())))
-
-def merge_nodes(G, nodes2merge):
-    neighbors_of_nodes_to_merge = defaultdict(set)
-    for n in nodes2merge:
-        neighbors_of_nodes_to_merge[frozenset(G[n])].add(n)
-    return BiGraph((m, frozenset(merged))
-                   for to_merge, merged in neighbors_of_nodes_to_merge.items()
-                   for m in to_merge)
-
-G = BiGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
-# filter out proteins with not enough peptides
-min_pepNo_per_prot = 2
-prots_deg_01 = [r for r in G.A() if G.degree(r) < min_pepNo_per_prot]
-G.remove_nodes_from(prots_deg_01)
-peps_for_prots_deg_01 = [p for p in G.B() if G.degree(p) == 0]
-G.remove_nodes_from(peps_for_prots_deg_01)
-
-peps = G.B()
-F = merge_nodes(G, peps)
-prots = F.A()
-H = merge_nodes(F, prots)
-
-next(H.A()) # pep groups
-next(H.B()) # prot groups
-len(H) # graph is much smaller now
-len(list(nx.connected_components(H)))
-
-CC = next(nx.connected_components(H))
-list(H.subgraph(CC).A())
-list(H.subgraph(CC).B())
+def report(R):
+    for cc in R.components():
+        p_cnt, r_cnt = cc.nodes_cnt()
+        if r_cnt == 0: # a single peptide
+            yield 'gowno' 
+        if r_cnt == 1:
+            yield simple_report(cc)
 
 
 
-good = []
-bad = []
-for CC in nx.connected_components(H):
-    CC = H.subgraph(CC)
-    pepNo, protNo = CC.nodes_cnt()
-    if protNo == 1:
-        good.append(CC)
-    else:
-        bad.append(CC)
-
-Counter(cc.nodes_cnt() for cc in good)# we can already iterate over these out to the output
-Counter(cc.nodes_cnt() for cc in bad)# these need further analysis
-
-cc = next(iter(bad)).copy() # this will not work otherwise?
-# for cc in bad:
-cc.nodes()
-# cc.draw()
-
-supported_prot_groups = [r for p in cc.A() if cc.degree(p) == 1 for r in cc[p]]
-
-cc.remove_nodes_from(supported_prot_groups)
-# just make the operation global: delete all those peptides.
-# no need to work on the connected components now.
 
 
+
+
+# # find all singly-deg pep groups, report them and their corresponding proteins
+# R_ds = {r for p in H.A() if H.degree(p)==1 for r in H[p]} # directly supported
+# # E_ds = [(r,p) for r in R_ds for p in H[r] if frozenset(H[p]) <= R_ds] # all peptide groups that are only linked to protein groups from R_ds. This is stupid, as it would simplify 1-A-2-B-3-C-4 >> 2-B-3, at odds with Beckham's razor.
+# E_ds = {(r,p) for r in R_ds for p in H[r]}
+
+# I = H.copy()
+# I.remove_nodes_from(R_ds)
+# I.remove_nodes_from(p for r,p in E_ds)
+# spurious_prots = [r for r in I.B() if I.degree(r) == 0]
+# I.remove_nodes_from(spurious_prots)
+
+# edges_to_add_back = []
+# for r in I.B():
+#     for p in H[r]:
+#         if p not in I:
+#             edges_to_add_back.append((r,p))
+#             for r_ds in H[p]:
+#                 if r_ds in R_ds:
+#                     edges_to_add_back.append((r_ds,p))
+#                     for p_deg1 in H[r_ds]:
+#                         if H.degree(p_deg1) == 1:
+#                             edges_to_add_back.append((r_ds, p_deg1))
+
+# for r,p in edges_to_add_back:
+#     I.add_AB_edge(p,r)
+#     R_ds.discard(r)
+#     E_ds.discard((r,p))
 
 # I need the input fasta file to retrieve their sequence to choose the representative.
 
@@ -301,3 +282,26 @@ cc.remove_nodes_from(supported_prot_groups)
 # # def deconvolve_intensities(connected_pep2prot_graph):
 # #     pass
 
+# G = PepProtGraph(zip(D.pep, D.prots))
+# G.del_prots_with_little_peps(2)
+# prothoods = defaultdict(list)
+# for p in G._peps(): #can there be peptide duplicates? No.
+#     prot_neighbors = frozenset(G[p])
+#     prothoods[prot_neighbors].append(p[1:])
+# F = BiGraph((r, " | ".join(ps)) for rs, ps in prothoods.items() for r in rs)
+# # again!
+
+# # simplifying the graph
+# G = BiGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
+# prothoods = defaultdict(list)
+# for p in G.B():
+#     prothoods[frozenset(G[p])].append(p)
+# F = BiGraph((r, frozenset(ps)) for rs, ps in prothoods.items() for r in rs)
+# pepgrouphoods = defaultdict(list)
+# for r in F.A():
+#     pepgrouphoods[frozenset(F[r])].append(r)
+# H = BiGraph((frozenset(rs), ps) for ps, rs in pepgrouphoods.items())
+
+# print(len(H))
+# print(len(list(H.A())))
+# print(len(list(H.B())))
