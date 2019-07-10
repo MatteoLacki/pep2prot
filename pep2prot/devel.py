@@ -11,9 +11,7 @@ import pandas as pd
 from pandas import DataFrame
 from itertools import islice
 
-from pep2prot.bipartite_graph import ProtPepGraph
-
-
+from pep2prot.graphs import ProtPepGraph
 
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
@@ -35,6 +33,8 @@ D['pep'] = np.where(D['modifier'], D['sequence'] + "_" + D['modifier'], D['seque
 pep_prots = ['pep','prots']
 D.prots = D.prots.str.split(',')
 
+next(G.prots())
+
 # Fun begins here:   peptide BLUE   protein: RED
 G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
 prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
@@ -51,7 +51,14 @@ for e in I.AB():
 it = R.components()
 cc = next(it)
 r = next(cc.B())
-for i, cc in enumerate(R.components()):
+D = D.set_index('pep')
+
+# fastes way to divide the data
+pep2cc = {p: i for i, cc in enumerate(R.components()) for pg in cc.peps() for p in pg}
+x = list(D.groupby(pep2cc))
+x[0]
+
+# add in the fasta file
 
 
 def report(R):
