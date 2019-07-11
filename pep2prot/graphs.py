@@ -5,10 +5,15 @@ from collections import defaultdict
 # from networkx.algorithms import bipartite
 
 
+set_union = lambda S: frozenset(r for s in S for r in s)
+
+#TODO: it would be good to allow names in A and B to be the same???
 class BiGraph(nx.Graph):
     """A bipartite graph."""
     def __init__(self, edges=None, *args, **kwds):
         """Instantiate a peptide-protein graph.
+
+        Attention! Nodes in A should hash to something else than nodes in B.
 
         Arguments:
             edges (iterable): edges (a,b) s.t. a in A and b in B.
@@ -104,28 +109,32 @@ class BiGraph(nx.Graph):
         for cc in nx.connected_components(self):
             yield self.subgraph(cc)
 
-    def merge_nodes(self, AorB):
+    def merge_nodes(self, AorB, merging_merged=False):
         """Merge nodes with the same neigbors in the other set.
 
         Calling with 'AorB == "A"', will merge 'A' nodes with common neighbors in 'B'.
         Calling with 'AorB == "B"', will merge 'B' nodes with common neighbors in 'A'.
+        Merged nodes are kept as frozensets of nodes.
+        If nodes were frozensets, it will try to merge them.
+        So don't put frozensets as nodes, or all will explode.
         """
         assert AorB in ('A', 'B'), "A or B. Literaly."
         neighbors_of_nodes_to_merge = defaultdict(set)
         for n in (self.A() if AorB == 'A' else self.B()):
             neighbors_of_nodes_to_merge[frozenset(self[n])].add(n)
-        return self.__class__(
-            (frozenset(merged),m) if AorB == 'A' else (m,frozenset(merged))
-            for to_merge, merged in neighbors_of_nodes_to_merge.items()
-            for m in to_merge
-        )
+        agg = set_union if merging_merged else frozenset
+        res = ((agg(merged),m) if AorB=='A' else (m,agg(merged))
+               for to_merge, merged in neighbors_of_nodes_to_merge.items()
+               for m in to_merge)
+        return self.__class__(res)
 
-    def form_groups(self):
+    def form_groups(self, merging_merged=False):
         """Merge all nodes with common neighbors."""
-        F = self.merge_nodes('B')
-        return F.merge_nodes('A')
+        F = self.merge_nodes('B', merging_merged)
+        return F.merge_nodes('A', merging_merged)
 
-
+#TODO: modify the draw function to add a legend for colors.
+#TODO: add the simplify method.
 class ProtPepGraph(BiGraph):
     def prots(self):
         yield from self.A()

@@ -23,7 +23,9 @@ setup(
         'Programming Language :: Python :: 3.7'],
     install_requires=[
         'networkx',
-        'pandas'
+        'pandas',
+        'furious_fastas',
+        'aa2atom'
     ],
     # include_package_data=True,
     # package_data={
