@@ -118,10 +118,6 @@ r_df.sort_values(['cc_index','len', 'mass', 'prot'], inplace=True)
 
 
 
-
-
-
-
 #TODO: rewrite without pandas and faster.
 def trivial_representative_prot(r_gr):
     """Choose a representative of a group of proteins."""

@@ -117,6 +117,10 @@ class BiGraph(nx.Graph):
         Merged nodes are kept as frozensets of nodes.
         If nodes were frozensets, it will try to merge them.
         So don't put frozensets as nodes, or all will explode.
+
+        Args:
+            AorB ('A' or 'B'): which set of nodes to merge?
+            merging_merged (boolean): in case of second round of merging, don't create sets of sets, but just bigger sets of merged nodes.
         """
         assert AorB in ('A', 'B'), "A or B. Literaly."
         neighbors_of_nodes_to_merge = defaultdict(set)
