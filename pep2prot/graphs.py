@@ -4,6 +4,7 @@ import networkx as nx
 from collections import defaultdict
 from networkx.algorithms import bipartite
 
+from .min_set_cover import greedy_minimal_cover_2
 
 set_union = lambda S: frozenset(r for s in S for r in s)
 
@@ -157,9 +158,9 @@ class BiGraph(nx.Graph):
         except nx.NetworkXNoCycle:
             return False
 
+    def greedy_minimal_cover(self, A_covers_B=True):
+        return greedy_minimal_cover_2(self, A_covers_B)
 
-    def greedy_min_set_cover(self):
-        pass
 
 
 def random_bigraph(maxA=20, maxB=40, prob=.05):

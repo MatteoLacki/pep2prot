@@ -16,7 +16,6 @@ from furious_fastas.fastas import UniprotFastas
 from furious_fastas.contaminants import uniprot_contaminants
 from aa2atom import aa2atom, atom2mass
 from aa2atom.aa2atom import UnknownAminoAcid
-
 from pep2prot.graphs import ProtPepGraph, BiGraph
 
 
@@ -47,35 +46,113 @@ G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
 prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
 G.remove_nodes_from(prots_without_enough_peps)
 
+from pep2prot.min_set_cover import greedy_minimal_cover, greedy_minimal_cover_2
+# things done once only
+#   getting rid of directly supported things
+
+H = G.form_groups()
+HMC = H.greedy_minimal_cover()
+
+
+X = greedy_minimal_cover_2(Z)
+len(X)
+G = BiGraph([('a',1),('b',1)])
+greedy_minimal_cover_2(T)
+
+
+
+
 #TODO: add to ProtPepGraph methods.
-def simplify(G):
-    H = G.form_groups()
-    R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
-                           for r in H[pH] for p in H[r]) # result graph
-    I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R) # problematic assignments
-    for e in I.AB():
-        R.add_AB_edge(*e)
-    J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
-    R = R.form_groups(merging_merged=True)
-    return H, R, I, J
+# def simplify(G):
+H = G.form_groups()
+cc= next(cc for cc in H.components() if len(cc) > 2)
 
-# def test_cycles_1():
-#     """Test """
-#     G = ProtPepGraph([('A',1), ('A',2), ('A',4), ('B',1), ('B',3), ('C',3), ('C',2), ('Z',4), ('Z',5)])
-#     return simplify(G)
-# H,R,I,J = test_cycles_1()
 
-# def test_cycles_2():
-#     """Test """
-#     G = ProtPepGraph([('A',1), ('A',2), ('B',1), ('B',3), ('C',3), ('C',2)])
-#     return simplify(G)
-# H,R,I,J = test_cycles_2()
-# H.draw(with_labels=True)
-# R.draw(with_labels=True)
-# I.draw(with_labels=True)
+Counter(cc.has_cycle() for cc in H.components())
+
+
+# cc.draw(with_labels=True, font_size=5)
+
+MSC = H.greedy_minimal_cover()
+# G = BiGraph([('a',0),('a',1),('b',1),('b',2),('c',2),('c',3),
+#                  ('d',3),('d',4)])
+# greedy_minimal_cover(G)
+
+
+cc = G.components()
+
+
+C = next(cc)
+C.draw()
+Z = C.copy()
+C = Z.copy()
+
+
+
+
+
+
+
+
+
+R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
+                  for r in H[pH] for p in H[r])
+I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R)
+for e in I.AB():
+    R.add_AB_edge(*e)
+J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
+R = R.form_groups(merging_merged=True)
+
+from pep2prot.min_set_cover import greedy_minimal_cover
+T = BiGraph([('a',1),('b',1)])
+greedy_minimal_cover(T)
+
+    # return H, R, I, J
+
 H, R, I, J = simplify(G)
-I.draw(with_labels=True)
 
+I_MC = I.greedy_minimal_cover()
+I.draw(node_size=[40 if n in I_MC else 10 for n in I])
+
+# Facilitate the task by including the supported edges.
+supported = BiGraph((a,b) for c in G.B() if G.degree(c)==1
+                    for a in G[c] for b in G[a])
+supported.draw(with_labels=True)
+unsupported = BiGraph((a,b) for a,b in G.AB() if b not in supported)
+# unsupported.draw(with_labels=True)
+# input for MSC, if not a cycle
+
+TSC = BiGraph([('A',1),('A',2),('A',3),
+              ('B',5),('B',2),('B',3),('B',4),
+              ('C',4),('C',5),
+              ('D',6),('D',7),('D',8),('D',9),
+              ('E',8),('E',9),
+              ('F',10),('F',12),
+              ('G',11),('G',12),
+              ('H',10),('H',11),('H',12)])
+
+set([]).union(*(__inner_greedy(C) for C in TSC.components()))
+
+TSC.draw(with_labels=True)
+
+# G = random_bigraph(100, 50)
+I.components()
+
+TSC_MC = greedy_minimal_cover(TSC)
+node_sizes = [40 if n in TSC_MC else 10 for n in TSC]
+TSC.draw(node_size=node_sizes)
+# min_cover = [greedy_minimal_cover(cc) for cc in R.components()]
+
+# Add this a procedure to generate a random bipartite graph.
+# pos = nx.bipartite_layout(G, G.A())
+# nx.draw(G, pos)
+# plt.show()
+# G.draw()
+%%time
+try:
+    X = nx.algorithms.find_cycle(G)
+except nx.NetworkXNoCycle:
+    pass
 
 
 
