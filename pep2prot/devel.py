@@ -45,130 +45,19 @@ assert obs_accessions <= set(accession2seq)
 G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
 prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
 G.remove_nodes_from(prots_without_enough_peps)
-
-from pep2prot.min_set_cover import greedy_minimal_cover, greedy_minimal_cover_2
-# things done once only
-#   getting rid of directly supported things
-
 H = G.form_groups()
-HMC = H.greedy_minimal_cover()
-
-
-X = greedy_minimal_cover_2(Z)
-len(X)
-G = BiGraph([('a',1),('b',1)])
-greedy_minimal_cover_2(T)
-
-
-
-
-#TODO: add to ProtPepGraph methods.
-# def simplify(G):
-H = G.form_groups()
-cc= next(cc for cc in H.components() if len(cc) > 2)
-
-
-Counter(cc.has_cycle() for cc in H.components())
-
-
-# cc.draw(with_labels=True, font_size=5)
-
-MSC = H.greedy_minimal_cover()
-# G = BiGraph([('a',0),('a',1),('b',1),('b',2),('c',2),('c',3),
-#                  ('d',3),('d',4)])
-# greedy_minimal_cover(G)
-
-
-cc = G.components()
-
-
-C = next(cc)
-C.draw()
-Z = C.copy()
-C = Z.copy()
-
-
-
-
-
-
-
-
-
-R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
-                  for r in H[pH] for p in H[r])
-I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R)
-for e in I.AB():
-    R.add_AB_edge(*e)
-J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
-R = R.form_groups(merging_merged=True)
-
-from pep2prot.min_set_cover import greedy_minimal_cover
-T = BiGraph([('a',1),('b',1)])
-greedy_minimal_cover(T)
-
-    # return H, R, I, J
-
-H, R, I, J = simplify(G)
-
-I_MC = I.greedy_minimal_cover()
-I.draw(node_size=[40 if n in I_MC else 10 for n in I])
-
-# Facilitate the task by including the supported edges.
-supported = BiGraph((a,b) for c in G.B() if G.degree(c)==1
-                    for a in G[c] for b in G[a])
-supported.draw(with_labels=True)
-unsupported = BiGraph((a,b) for a,b in G.AB() if b not in supported)
-# unsupported.draw(with_labels=True)
-# input for MSC, if not a cycle
-
-TSC = BiGraph([('A',1),('A',2),('A',3),
-              ('B',5),('B',2),('B',3),('B',4),
-              ('C',4),('C',5),
-              ('D',6),('D',7),('D',8),('D',9),
-              ('E',8),('E',9),
-              ('F',10),('F',12),
-              ('G',11),('G',12),
-              ('H',10),('H',11),('H',12)])
-
-set([]).union(*(__inner_greedy(C) for C in TSC.components()))
-
-TSC.draw(with_labels=True)
-
-# G = random_bigraph(100, 50)
-I.components()
-
-TSC_MC = greedy_minimal_cover(TSC)
-node_sizes = [40 if n in TSC_MC else 10 for n in TSC]
-TSC.draw(node_size=node_sizes)
-# min_cover = [greedy_minimal_cover(cc) for cc in R.components()]
-
-# Add this a procedure to generate a random bipartite graph.
-# pos = nx.bipartite_layout(G, G.A())
-# nx.draw(G, pos)
-# plt.show()
-# G.draw()
-%%time
-try:
-    X = nx.algorithms.find_cycle(G)
-except nx.NetworkXNoCycle:
-    pass
-
-
-
-
-
-
-
-
-
+HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover
+H.remove_nodes_from([r for r in H.prots() if r not in HMC])
 
 # Getting intensities:
 D = D.set_index('pep')
-D2 = D.loc[(r for rg in R.peps() for r in rg)] #reducing D to peps in R
-p2pgr = {p:pg for pg in R.peps() for p in pg}
+D2 = D.loc[(r for rg in H.peps() for r in rg)] #reducing D to peps in R
+
+# WTF ist das?
+p2pgr = {p:pg for pg in H.peps() for p in pg}
 D2_pgr = D2.groupby(p2pgr)
-I_pgr = D2_pgr[I_cols].sum()
+I_pgr = D2_pgr[I_cols].sum() # the maximal values of intensity per 
+
 
 # reporting
 for rgr in R.prots():
@@ -177,6 +66,40 @@ for rgr in R.prots():
 
 m = R.subgraph(nx.node_connected_component(R, rgr))
 m.draw(with_labels=True)
+
+
+
+
+it = (cc for cc in H.components() if len(cc) > 2)
+cc = next(it)
+cc.draw(node_size=[40 if n in HMC else 10 for n in cc])
+
+
+
+
+
+
+
+# R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
+#                   for r in H[pH] for p in H[r])
+# I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R)
+# for e in I.AB():
+#     R.add_AB_edge(*e)
+# J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
+# R = R.form_groups(merging_merged=True)
+# # return H, R, I, J
+# H, R, I, J = simplify(G)
+
+# Facilitate the task by including the supported edges.
+# supported = BiGraph((a,b) for c in G.B() if G.degree(c)==1
+#                     for a in G[c] for b in G[a])
+# supported.draw(with_labels=True)
+# unsupported = BiGraph((a,b) for a,b in G.AB() if b not in supported)
+# unsupported.draw(with_labels=True)
+# input for MSC, if not a cycle
+
+
+
 # something is still wrong here: one protein group should have at most one peptide group with deg=1.
 
 I_pgr.loc[R[rgr]].sum() # maximal intensity per run for a protein group

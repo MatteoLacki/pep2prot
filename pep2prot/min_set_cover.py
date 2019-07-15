@@ -123,3 +123,20 @@ def test_greedy_minimal_cover_2():
     T = BiGraph([('a',0),('a',1),('b',1),('b',2),('c',2),('c',3),
                  ('d',3),('d',4)])
     assert greedy_minimal_cover_2(T) == {'a','b','c','d'}
+
+    # Interesing case:
+    TSC = BiGraph([('A',1),('A',2),('A',3),
+              ('B',5),('B',2),('B',3),('B',4),
+              ('C',4),('C',5),
+              ('D',6),('D',7),('D',8),('D',9),
+              ('E',8),('E',9),
+              ('F',10),('F',12),
+              ('G',11),('G',12),
+              ('H',10),('H',11),('H',12)])
+    TSC = TSC.form_groups()
+    assert TSC.greedy_minimal_cover()=={frozenset({'H'}), frozenset({'D'}), frozenset({'A'}), frozenset({'C'}), frozenset({'B'})}
+    node_sizes = [40 if n in TSC_MC else 10 for n in TSC]
+    # TSC.draw(node_size=node_sizes)
+
+
+
