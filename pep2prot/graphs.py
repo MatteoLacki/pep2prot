@@ -2,7 +2,7 @@
 
 import networkx as nx
 from collections import defaultdict
-# from networkx.algorithms import bipartite
+from networkx.algorithms import bipartite
 
 
 set_union = lambda S: frozenset(r for s in S for r in s)
@@ -67,9 +67,22 @@ class BiGraph(nx.Graph):
             i += 1
         return i, len(self) - i
 
+    def A_cnt(self):
+        i = 0
+        for a in self.A():
+            i += 1
+        return i
+
+    def B_cnt(self):
+        i = 0
+        for b in self.B():
+            i += 1
+        return i
+
     def __repr__(self):
         return "BiGraph(#A={} #B={} #E={})".format(*self.nodes_cnt(), len(self.edges))
 
+    #TODO: start using bipartite layout for components.
     def draw(self, show=True, with_labels=False, node_size=10, *args, **kwds):
         import matplotlib.pyplot as plt
         node_colors = [('red' if self.node[n]['A'] else 'blue') for n in self]
@@ -136,6 +149,36 @@ class BiGraph(nx.Graph):
         """Merge all nodes with common neighbors."""
         F = self.merge_nodes('B', merging_merged)
         return F.merge_nodes('A', merging_merged)
+
+    def has_cycle(self):
+        try:
+            _ = nx.algorithms.find_cycle(self)
+            return True
+        except nx.NetworkXNoCycle:
+            return False
+
+
+    def greedy_min_set_cover(self):
+        pass
+
+
+def random_bigraph(maxA=20, maxB=40, prob=.05):
+    """Generate a random BiGraph.
+
+    Args:
+        maxA (int): max number of nodes in A.
+        maxB (int): max number of nodes in B.
+        prob (float): probability of edge formation.
+    Returns:
+        BiGraph: A random BiGraph.
+    """
+    assert prob >= 0 and prob <= 1
+    G = nx.algorithms.bipartite.generators.random_graph(maxA, maxB, p=prob)
+    G.remove_nodes_from([n for n in G if G.degree(n) == 0])
+    G = max((G.subgraph(cc) for cc in nx.connected_components(G)), key=lambda cc: len(cc))
+    return BiGraph((a,b) for a in nx.bipartite.sets(G)[0] for b in G[a])
+
+
 
 #TODO: modify the draw function to add a legend for colors.
 #TODO: add the simplify method.

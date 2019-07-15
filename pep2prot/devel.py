@@ -6,25 +6,27 @@ from collections import Counter, defaultdict
 import networkx as nx
 import numpy as np
 from pathlib import Path
-import pandas as pd
 import difflib
+import pandas as pd
+pd.set_option('display.max_rows', 10)
+pd.set_option('display.max_columns', 100)
+pd.set_option('display.max_colwidth', 40)#display whole column without truncation
 
 from furious_fastas.fastas import UniprotFastas
 from furious_fastas.contaminants import uniprot_contaminants
 from aa2atom import aa2atom, atom2mass
 from aa2atom.aa2atom import UnknownAminoAcid
 
-from pep2prot.graphs import ProtPepGraph
+from pep2prot.graphs import ProtPepGraph, BiGraph
 
-pd.set_option('display.max_rows', 10)
-pd.set_option('display.max_columns', 100)
-pd.set_option('display.max_colwidth', 40)#display whole column without truncation
+
 path = r"~/Projects/pep2prot/pep2prot/data"
+
 path = Path(path).expanduser()
 D = pd.read_csv(path/'peptide_report.csv', encoding = "ISO-8859-1")
 fastas = UniprotFastas()
 fastas.read(path/'mouse.fasta')
-# parameters for graph prunning
+
 min_pepNo_per_prot = 2
 
 # preprocessing
@@ -72,6 +74,17 @@ def simplify(G):
 # R.draw(with_labels=True)
 # I.draw(with_labels=True)
 H, R, I, J = simplify(G)
+I.draw(with_labels=True)
+
+
+
+
+
+
+
+
+
+
 
 # Getting intensities:
 D = D.set_index('pep')
