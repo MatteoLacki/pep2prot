@@ -7,7 +7,6 @@ import networkx as nx
 import numpy as np
 from pathlib import Path
 import pandas as pd
-import difflib
 
 from furious_fastas.fastas import UniprotFastas
 from furious_fastas.contaminants import uniprot_contaminants
@@ -19,13 +18,15 @@ from pep2prot.graphs import ProtPepGraph
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 40)#display whole column without truncation
+
+# parameters for graph prunning
+min_pepNo_per_prot = 2
+
 path = r"~/Projects/pep2prot/pep2prot/data"
 path = Path(path).expanduser()
 D = pd.read_csv(path/'peptide_report.csv', encoding = "ISO-8859-1")
 fastas = UniprotFastas()
 fastas.read(path/'mouse.fasta')
-# parameters for graph prunning
-min_pepNo_per_prot = 2
 
 # preprocessing
 D.modifier = D.modifier.fillna('')
@@ -38,7 +39,6 @@ D.prots = D.prots.str.split(',')
 accession2seq = {f.header.split(' ')[1]: str(f) for f in fastas}
 obs_accessions = {r for rg in D.prots for r in rg}
 assert obs_accessions <= set(accession2seq)
-
 
 # Fun begins here:   peptide BLUE   protein: RED
 G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
@@ -54,7 +54,7 @@ def simplify(G):
     for e in I.AB():
         R.add_AB_edge(*e)
     J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
-    R = R.form_groups(merging_merged=True)
+    R = R.form_groups(merging_merged=True)# as R < H, some edges might be missing and a new round of merging is needed.
     return H, R, I, J
 
 # def test_cycles_1():
@@ -78,7 +78,9 @@ D = D.set_index('pep')
 D2 = D.loc[(r for rg in R.peps() for r in rg)] #reducing D to peps in R
 p2pgr = {p:pg for pg in R.peps() for p in pg}
 D2_pgr = D2.groupby(p2pgr)
-I_pgr = D2_pgr[I_cols].sum()
+I_pgr = D2_pgr[I_cols].sum()# for maximal intensity
+
+
 
 # reporting
 for rgr in R.prots():
