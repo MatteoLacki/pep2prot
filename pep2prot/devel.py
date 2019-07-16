@@ -7,22 +7,19 @@ import networkx as nx
 import numpy as np
 from pathlib import Path
 import pandas as pd
+pd.set_option('display.max_rows', 10)
+pd.set_option('display.max_columns', 100)
+pd.set_option('display.max_colwidth', 40)#display whole column without truncation
 
 from furious_fastas.fastas import UniprotFastas
 from furious_fastas.contaminants import uniprot_contaminants
 from aa2atom import aa2atom, atom2mass
 from aa2atom.aa2atom import UnknownAminoAcid
+from pep2prot.graphs import ProtPepGraph, BiGraph
 
-from pep2prot.graphs import ProtPepGraph
-
-pd.set_option('display.max_rows', 10)
-pd.set_option('display.max_columns', 100)
-pd.set_option('display.max_colwidth', 40)#display whole column without truncation
-
-# parameters for graph prunning
 min_pepNo_per_prot = 2
-
 path = r"~/Projects/pep2prot/pep2prot/data"
+
 path = Path(path).expanduser()
 D = pd.read_csv(path/'peptide_report.csv', encoding = "ISO-8859-1")
 fastas = UniprotFastas()
@@ -44,39 +41,17 @@ assert obs_accessions <= set(accession2seq)
 G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
 prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
 G.remove_nodes_from(prots_without_enough_peps)
+H = G.form_groups()
+HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover
+H.remove_nodes_from([r for r in H.prots() if r not in HMC])
 
-#TODO: add to ProtPepGraph methods.
-def simplify(G):
-    H = G.form_groups()
-    R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
-                           for r in H[pH] for p in H[r]) # result graph
-    I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R) # problematic assignments
-    for e in I.AB():
-        R.add_AB_edge(*e)
-    J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
-    R = R.form_groups(merging_merged=True)# as R < H, some edges might be missing and a new round of merging is needed.
-    return H, R, I, J
-
-# def test_cycles_1():
-#     """Test """
-#     G = ProtPepGraph([('A',1), ('A',2), ('A',4), ('B',1), ('B',3), ('C',3), ('C',2), ('Z',4), ('Z',5)])
-#     return simplify(G)
-# H,R,I,J = test_cycles_1()
-
-# def test_cycles_2():
-#     """Test """
-#     G = ProtPepGraph([('A',1), ('A',2), ('B',1), ('B',3), ('C',3), ('C',2)])
-#     return simplify(G)
-# H,R,I,J = test_cycles_2()
-# H.draw(with_labels=True)
-# R.draw(with_labels=True)
-# I.draw(with_labels=True)
-H, R, I, J = simplify(G)
 
 # Getting intensities:
 D = D.set_index('pep')
-D2 = D.loc[(r for rg in R.peps() for r in rg)] #reducing D to peps in R
-p2pgr = {p:pg for pg in R.peps() for p in pg}
+D2 = D.loc[(r for rg in H.peps() for r in rg)] #reducing D to peps in R
+
+# WTF ist das?
+p2pgr = {p:pg for pg in H.peps() for p in pg}
 D2_pgr = D2.groupby(p2pgr)
 I_pgr = D2_pgr[I_cols].sum()# for maximal intensity
 
@@ -89,6 +64,40 @@ for rgr in R.prots():
 
 m = R.subgraph(nx.node_connected_component(R, rgr))
 m.draw(with_labels=True)
+
+
+
+
+it = (cc for cc in H.components() if len(cc) > 2)
+cc = next(it)
+cc.draw(node_size=[40 if n in HMC else 10 for n in cc])
+
+
+
+
+
+
+
+# R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
+#                   for r in H[pH] for p in H[r])
+# I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R)
+# for e in I.AB():
+#     R.add_AB_edge(*e)
+# J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
+# R = R.form_groups(merging_merged=True)
+# # return H, R, I, J
+# H, R, I, J = simplify(G)
+
+# Facilitate the task by including the supported edges.
+# supported = BiGraph((a,b) for c in G.B() if G.degree(c)==1
+#                     for a in G[c] for b in G[a])
+# supported.draw(with_labels=True)
+# unsupported = BiGraph((a,b) for a,b in G.AB() if b not in supported)
+# unsupported.draw(with_labels=True)
+# input for MSC, if not a cycle
+
+
+
 # something is still wrong here: one protein group should have at most one peptide group with deg=1.
 
 I_pgr.loc[R[rgr]].sum() # maximal intensity per run for a protein group
