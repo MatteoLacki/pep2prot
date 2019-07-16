@@ -1,5 +1,5 @@
 %load_ext autoreload
-%autoreload 2
+%autoreload 27
 
 import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
@@ -18,6 +18,7 @@ from aa2atom.aa2atom import UnknownAminoAcid
 from pep2prot.graphs import ProtPepGraph, BiGraph
 
 min_pepNo_per_prot = 2
+max_rt_deviation = 1
 path = r"~/Projects/pep2prot/pep2prot/data"
 
 path = Path(path).expanduser()
@@ -31,31 +32,99 @@ I_cols = [c for c in D.columns if "intensity in" in c]
 D[I_cols] = D[I_cols].fillna(0)
 D.rename(columns={'pre_homology_entries':'prots'}, inplace=True)
 D['pep'] = np.where(D['modifier'], D['sequence'] + "_" + D['modifier'], D['sequence'])
-pep_prots = ['pep','prots']
-D.prots = D.prots.str.split(',')
+D.prots = D.prots.str.split(',').apply(frozenset)
 accession2seq = {f.header.split(' ')[1]: str(f) for f in fastas}
 obs_accessions = {r for rg in D.prots for r in rg}
-assert obs_accessions <= set(accession2seq)
+assert obs_accessions <= set(accession2seq), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
+D_pep = D.groupby('pep')
+assert np.all(D_pep.prots.nunique() == 1), "Different proteins appear to explain the same peptides in different clusters. How come? Repent."
+# aggregate the same peptides in different clusters
+
+# X = D_pep.nunique().nunique() # the double unique beast!
+
+unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions', 'pi', 'mw']
+
+
+def complex_cluster_buster(D, I_cols, unique_columns):
+    """Merge the same peptides that were in different clusters.
+
+    Filter out peptides too far away in retention time from the top scoring cluster.
+
+    Args:
+        D (pd.DataFrame): indexed by pep.
+    """
+    DD = D.copy()
+    D_pep = DD.groupby(DD.index)
+    pep_size = D_pep.size()
+    D_mul_uni = DD.groupby(pd.Series(np.where(pep_size.values > 1, 'mul', 'uni'), pep_size.index))
+    uni = D_mul_uni.get_group('uni')
+    mul = D_mul_uni.get_group('mul').copy()
+    mul.sort_index(inplace=True)
+    mul_pep = mul.groupby(mul.index)
+    mul_scores = mul.peptide_annotated_max_score - mul_pep.peptide_annotated_max_score.max()
+    mul_rt2tophit = mul.signal_rt - mul.signal_rt[mul_scores == 0]
+    mul = mul[np.abs(mul_rt2tophit) < max_rt_deviation]
+    mul_pep = mul.groupby(mul.index)
+    mul_intensities = mul_pep[I_cols].sum()
+    mul_descriptors = mul_pep[unique_columns].head(1)
+    mul_res = pd.concat([mul_intensities, mul_descriptors], axis=1, sort=True)    
+    res = pd.concat([uni[I_cols + unique_columns], mul_res], sort=True)
+    res.reset_index(inplace=True)
+    return res
+    
+
+def simple_cluster_buster(D, I_cols, unique_columns):
+    """Merge the same peptides that were in different clusters.
+
+    The aggregation does not take into account any filtering and is dead simple.
+    """
+    D_pep = D.groupby(D.index)
+    aggregated_intensities = D_pep[I_cols].sum()
+    no_change_here = D_pep[unique_columns].head(1)
+    res = pd.concat([aggregated_intensities, no_change_here], axis=1, sort=True)
+    res.reset_index(inplace=True)
+    res.rename(columns={'index':'pep'}, inplace=True)
+    return res
+
+E = complex_cluster_buster(D, I_cols, unique_columns)
+F = simple_cluster_buster(D, I_cols, unique_columns)
+
 
 # Fun begins here:   peptide BLUE   protein: RED
-G = ProtPepGraph((r,p) for rs, p in zip(D.prots, D.pep) for r in rs)
-prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
-G.remove_nodes_from(prots_without_enough_peps)
-H = G.form_groups()
-HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover
-H.remove_nodes_from([r for r in H.prots() if r not in HMC])
+def get_graph(data, min_pepNo_per_prot=2):
+    """Get the petide-protein-groups graph."""
+    G = ProtPepGraph((r,p) for rs, p in zip(data.prots, data.pep) for r in rs)
+    prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
+    G.remove_nodes_from(prots_without_enough_peps)
+    H = G.form_groups()
+    HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover
+    beckhams_razor_prots = [r for rg in H.prots() if rg not in HMC for r in rg]
+    H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
+    HF.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
+    return H
+
+HE = get_graph(E)
+HF = get_graph(F)
+
+# NOW: FINALLY THE BLOODY REPORT
+# we also need to merge H nodes again???
+
+
+pep2pepgroup = {p:pg for pg in H.peps() for p in pg}
 
 
 # Getting intensities:
 D = D.set_index('pep')
-D2 = D.loc[(r for rg in H.peps() for r in rg)] #reducing D to peps in R
+D2 = D.loc[pep2pepgroup] #reducing D to peps in R
+
+D.loc["QVIPIIGK"]
 
 # WTF ist das?
-p2pgr = {p:pg for pg in H.peps() for p in pg}
+
 D2_pgr = D2.groupby(p2pgr)
 I_pgr = D2_pgr[I_cols].sum()# for maximal intensity
 
-
+p2pgr
 
 # reporting
 for rgr in R.prots():

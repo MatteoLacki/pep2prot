@@ -36,7 +36,7 @@ def greedy_minimal_cover(G, A_covers_B=True, copy_G=True):
             n_max_neighbors = list(G[n_max])
             G.remove_nodes_from(n_max_neighbors)
             G.remove_node(n_max)
-            G.remove_nodes_from([n for n in covering() if G.degree(n) == 0])#n_max covers what n does
+            G.remove_nodes_from([n for n in covering() if G.degree(n) == 0])# covers what n does
             to_cover_cnt -= len(n_max_neighbors)
         return cover
     else: 
@@ -134,7 +134,8 @@ def test_greedy_minimal_cover_2():
               ('G',11),('G',12),
               ('H',10),('H',11),('H',12)])
     TSC = TSC.form_groups()
-    assert TSC.greedy_minimal_cover()=={frozenset({'H'}), frozenset({'D'}), frozenset({'A'}), frozenset({'C'}), frozenset({'B'})}
+    TSC_MC = TSC.greedy_minimal_cover()
+    assert TSC_MC=={frozenset({'H'}), frozenset({'D'}), frozenset({'A'}), frozenset({'C'}), frozenset({'B'})}
     node_sizes = [40 if n in TSC_MC else 10 for n in TSC]
     # TSC.draw(node_size=node_sizes)
 
