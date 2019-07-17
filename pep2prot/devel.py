@@ -1,94 +1,40 @@
 %load_ext autoreload
-%autoreload 27
+%autoreload 2
 
+from pathlib import Path
 import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
 import networkx as nx
 import numpy as np
-from pathlib import Path
 import pandas as pd
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 40)#display whole column without truncation
 
-from furious_fastas.fastas import UniprotFastas
-from furious_fastas.contaminants import uniprot_contaminants
+
 from aa2atom import aa2atom, atom2mass
 from aa2atom.aa2atom import UnknownAminoAcid
+from pep2prot.read import read_isoquant_peptide_report, read_n_check_fastas
 from pep2prot.graphs import ProtPepGraph, BiGraph
+from pep2prot.preprocessing import preprocess_isoquant_peptide_report, complex_cluster_buster, simple_cluster_buster
 
 min_pepNo_per_prot = 2
 max_rt_deviation = 1
-path = r"~/Projects/pep2prot/pep2prot/data"
+path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 
-path = Path(path).expanduser()
-D = pd.read_csv(path/'peptide_report.csv', encoding = "ISO-8859-1")
-fastas = UniprotFastas()
-fastas.read(path/'mouse.fasta')
-
-# preprocessing
-D.modifier = D.modifier.fillna('')
-I_cols = [c for c in D.columns if "intensity in" in c]
-D[I_cols] = D[I_cols].fillna(0)
-D.rename(columns={'pre_homology_entries':'prots'}, inplace=True)
-D['pep'] = np.where(D['modifier'], D['sequence'] + "_" + D['modifier'], D['sequence'])
-D.prots = D.prots.str.split(',').apply(frozenset)
-accession2seq = {f.header.split(' ')[1]: str(f) for f in fastas}
-obs_accessions = {r for rg in D.prots for r in rg}
-assert obs_accessions <= set(accession2seq), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
-D_pep = D.groupby('pep')
-assert np.all(D_pep.prots.nunique() == 1), "Different proteins appear to explain the same peptides in different clusters. How come? Repent."
-# aggregate the same peptides in different clusters
-
-# X = D_pep.nunique().nunique() # the double unique beast!
-
+D = read_isoquant_peptide_report(path/'peptide_report.csv')
+D, I_cols = preprocess_isoquant_peptide_report(D)
 unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions', 'pi', 'mw']
 
+D2 = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
+# F = simple_cluster_buster(D, I_cols, unique_columns)
 
-def complex_cluster_buster(D, I_cols, unique_columns):
-    """Merge the same peptides that were in different clusters.
+prot2seq = {r for rg in D2.prots for r in rg}
+prot2seq = read_n_check_fastas(path/'mouse.fasta', obs_prots)
 
-    Filter out peptides too far away in retention time from the top scoring cluster.
-
-    Args:
-        D (pd.DataFrame): indexed by pep.
-    """
-    DD = D.copy()
-    D_pep = DD.groupby(DD.index)
-    pep_size = D_pep.size()
-    D_mul_uni = DD.groupby(pd.Series(np.where(pep_size.values > 1, 'mul', 'uni'), pep_size.index))
-    uni = D_mul_uni.get_group('uni')
-    mul = D_mul_uni.get_group('mul').copy()
-    mul.sort_index(inplace=True)
-    mul_pep = mul.groupby(mul.index)
-    mul_scores = mul.peptide_annotated_max_score - mul_pep.peptide_annotated_max_score.max()
-    mul_rt2tophit = mul.signal_rt - mul.signal_rt[mul_scores == 0]
-    mul = mul[np.abs(mul_rt2tophit) < max_rt_deviation]
-    mul_pep = mul.groupby(mul.index)
-    mul_intensities = mul_pep[I_cols].sum()
-    mul_descriptors = mul_pep[unique_columns].head(1)
-    mul_res = pd.concat([mul_intensities, mul_descriptors], axis=1, sort=True)    
-    res = pd.concat([uni[I_cols + unique_columns], mul_res], sort=True)
-    res.reset_index(inplace=True)
-    return res
-    
-
-def simple_cluster_buster(D, I_cols, unique_columns):
-    """Merge the same peptides that were in different clusters.
-
-    The aggregation does not take into account any filtering and is dead simple.
-    """
-    D_pep = D.groupby(D.index)
-    aggregated_intensities = D_pep[I_cols].sum()
-    no_change_here = D_pep[unique_columns].head(1)
-    res = pd.concat([aggregated_intensities, no_change_here], axis=1, sort=True)
-    res.reset_index(inplace=True)
-    res.rename(columns={'index':'pep'}, inplace=True)
-    return res
-
-E = complex_cluster_buster(D, I_cols, unique_columns)
-F = simple_cluster_buster(D, I_cols, unique_columns)
-
+unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
+# aggregate the same peptides in different clusters
+# X = D_pep.nunique().nunique() # the double unique beast!
 
 # Fun begins here:   peptide BLUE   protein: RED
 def get_graph(data, min_pepNo_per_prot=2):
@@ -108,19 +54,11 @@ HF = get_graph(F)
 
 # NOW: FINALLY THE BLOODY REPORT
 # we also need to merge H nodes again???
-
-
 pep2pepgroup = {p:pg for pg in H.peps() for p in pg}
-
 
 # Getting intensities:
 D = D.set_index('pep')
 D2 = D.loc[pep2pepgroup] #reducing D to peps in R
-
-D.loc["QVIPIIGK"]
-
-# WTF ist das?
-
 D2_pgr = D2.groupby(p2pgr)
 I_pgr = D2_pgr[I_cols].sum()# for maximal intensity
 
@@ -130,21 +68,6 @@ p2pgr
 for rgr in R.prots():
     if len(rgr) > 2:
         break
-
-m = R.subgraph(nx.node_connected_component(R, rgr))
-m.draw(with_labels=True)
-
-
-
-
-it = (cc for cc in H.components() if len(cc) > 2)
-cc = next(it)
-cc.draw(node_size=[40 if n in HMC else 10 for n in cc])
-
-
-
-
-
 
 
 # R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
