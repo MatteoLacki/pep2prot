@@ -182,7 +182,6 @@ def random_bigraph(maxA=20, maxB=40, prob=.05):
 
 
 #TODO: modify the draw function to add a legend for colors.
-#TODO: add the simplify method.
 class ProtPepGraph(BiGraph):
     def prots(self):
         yield from self.A()
@@ -226,3 +225,20 @@ def get_peptide_protein_graph(data, min_pepNo_per_prot=2, proteins_col='prots'):
     H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
     H = H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
     return H, prots_without_enough_peps, beckhams_razor_prots
+
+
+def test_node_merger():
+    min_pepNo_per_prot = 2
+    max_rt_deviation = 1
+    path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
+    D = read_isoquant_peptide_report(path/'peptide_report.csv')
+    D, I_cols = preprocess_isoquant_peptide_report(D)
+    unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
+    DD = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
+    prot2seq = {r for rg in D2.prots for r in rg}
+    prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
+    H, RWEP, BRR = get_peptide_protein_graph(DD)
+    x = Counter(frozenset(H[r]) for r in H.prots())
+    assert set(Counter(x.values())) == {1}
+    x = Counter(frozenset(H[r]) for r in H.peps())
+    assert set(Counter(x.values())) == {1}

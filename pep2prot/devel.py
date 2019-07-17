@@ -28,7 +28,6 @@ unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overa
 D2 = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
 D3 = simple_cluster_buster(D, I_cols, unique_columns)
 DD = D2
-data = D2
 
 prot2seq = {r for rg in D2.prots for r in rg}
 prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
@@ -43,7 +42,7 @@ H = H2
 x = Counter(frozenset(H[r]) for r in H.prots())
 Counter(x.values())
 x = Counter(frozenset(H[r]) for r in H.peps())
-Counter(x.values()) # NO, WTF?
+Counter(x.values())
 
 
 # NOW: FINALLY THE BLOODY REPORT
