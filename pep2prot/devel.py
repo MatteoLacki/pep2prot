@@ -23,11 +23,12 @@ path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 
 D = read_isoquant_peptide_report(path/'peptide_report.csv')
 D, I_cols = preprocess_isoquant_peptide_report(D)
-
-unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
 # X = D.groupby(D.index).nunique().nunique() # the double unique beast!
+unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
 D2 = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
 D3 = simple_cluster_buster(D, I_cols, unique_columns)
+DD = D2
+data = D2
 
 prot2seq = {r for rg in D2.prots for r in rg}
 prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
@@ -37,16 +38,42 @@ H2, RWEP2, BRR2 = get_peptide_protein_graph(D2)
 H3, RWEP3, BRR3 = get_peptide_protein_graph(D3)
 
 H = H2
+
+# TESTING IF ALL NODES HAVE DIFFERENT NEIGHBORS
+x = Counter(frozenset(H[r]) for r in H.prots())
+Counter(x.values())
+x = Counter(frozenset(H[r]) for r in H.peps())
+Counter(x.values()) # NO, WTF?
+
+
 # NOW: FINALLY THE BLOODY REPORT
-pep2pepgroup = {p:pg for pg in H.peps() for p in pg}
+%%time
+pep2pepgr = {p:pg for pg in H.peps() for p in pg}
+D2 = DD.loc[pep2pepgr] # peps in H (no simple prot-pep pairs)
+D2.drop(('prots'), axis=1, inplace=True)
+pepgrI = D2[I_cols].groupby(pep2pepgr).sum()# peptide group intensities
+# pepgrI_rg = pepgrI.groupby(lambda pg: frozenset(H[pg]))
+# pepgrI_rg.sum()
+Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(),
+                                columns=('protgr','pepgr'),
+                                index='protgr')
+Hdf = Hdf.join(pepgrI, on='pepgr')
+Hdf_protgr = Hdf.groupby(Hdf.index)
+protgr_max_I = Hdf_protgr.sum()
+# making min intensities
+pepgr_sizes = pd.DataFrame(Hdf.groupby('pepgr').size(),
+                           columns=['pepgr_neighbors_cnt'])
+Hdf = Hdf.join(pepgr_sizes, on='pepgr')
 
-# Getting intensities:
-D = D.set_index('pep')
-D2 = D.loc[pep2pepgroup] #reducing D to peps in R
-D2_pgr = D2.groupby(p2pgr)
-I_pgr = D2_pgr[I_cols].sum()# for maximal intensity
+x = Hdf.query("pepgr_neighbors_cnt==1")
+np.all(x.groupby(x.index).size() == 1)
+# do we have again more peptide
 
-p2pgr
+
+Hdf_protgr.apply(lambda x: x if x.shape[0] == 1 else 0)
+
+
+
 
 # reporting
 for rgr in R.prots():

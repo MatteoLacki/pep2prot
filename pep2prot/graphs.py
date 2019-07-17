@@ -221,7 +221,8 @@ def get_peptide_protein_graph(data, min_pepNo_per_prot=2, proteins_col='prots'):
     G.remove_nodes_from(prots_without_enough_peps)
     H = G.form_groups()
     HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover.
+    len(HMC)
     beckhams_razor_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
     H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
-    H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
+    H = H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
     return H, prots_without_enough_peps, beckhams_razor_prots
