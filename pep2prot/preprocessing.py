@@ -2,12 +2,30 @@ import pandas as pd
 import numpy as np
 
 
-def preprocess_isoquant_peptide_report(D):
-    D.modifier = D.modifier.fillna('')
+def simplify_mods(mods):
+    if mods and not mods is np.nan:
+        mods = mods.replace(', ',',')
+        mods_d = {}
+        for mod in mods.split(','):
+            m, pos = mod.split(' ')
+            pos = pos[0] + pos[2:-1]
+            prev_pos = mods_d.get(m,'')
+            mods_d[m] = prev_pos+"_"+pos if prev_pos else pos
+        return " ".join(m+"_"+pos for m, pos in mods_d.items())
+    else:
+        return ''
+
+simplify_mods = np.vectorize(simplify_mods)
+
+def trivial_mods_simplification(mods_column):
+    return mods_column.str.replace(' C\\(', '_C(').str.replace('\\,','')
+
+def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
     I_cols = [c for c in D.columns if "intensity in" in c]
     D[I_cols] = D[I_cols].fillna(0)
     D.rename(columns={'pre_homology_entries':'prots'}, inplace=True)
-    D['pep'] = np.where(D['modifier'], D['sequence'] + "_" + D['modifier'], D['sequence'])
+    D.modifier = mods_simplifier(D.modifier)
+    D['pep'] = np.where(D.modifier, D.sequence + " " + D.modifier, D.sequence)
     D.prots = D.prots.str.split(',').apply(frozenset)
     D_pep = D.groupby('pep')
     assert np.all(D_pep.prots.nunique() == 1), "Different proteins appear to explain the same peptides in different clusters. How come? Repent."    

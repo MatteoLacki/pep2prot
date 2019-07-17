@@ -23,6 +23,7 @@ path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 
 D = read_isoquant_peptide_report(path/'peptide_report.csv')
 D, I_cols = preprocess_isoquant_peptide_report(D)
+
 unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
 # X = D.groupby(D.index).nunique().nunique() # the double unique beast!
 D2 = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
@@ -35,8 +36,8 @@ prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
 H2, RWEP2, BRR2 = get_peptide_protein_graph(D2)
 H3, RWEP3, BRR3 = get_peptide_protein_graph(D3)
 
+H = H2
 # NOW: FINALLY THE BLOODY REPORT
-# we also need to merge H nodes again???
 pep2pepgroup = {p:pg for pg in H.peps() for p in pg}
 
 # Getting intensities:
