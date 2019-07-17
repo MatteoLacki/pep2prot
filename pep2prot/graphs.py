@@ -201,3 +201,27 @@ class ProtPepGraph(BiGraph):
 
     def __repr__(self):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
+
+
+
+def get_peptide_protein_graph(data, min_pepNo_per_prot=2, proteins_col='prots'):
+    """Get the petide-protein-groups graph.
+
+    Args:
+        data (pd.DataFrame): DataFrame where each row corresponds to one peptide, indexed by peptides. 
+        min_pepNo_per_prot (int): Minimum number of peptides to qualify a protein.
+        proteins_col (str): Name of the column containing sets of proteins explaining respective peptides.
+        peptide_col (str): Name of the column containing uniquely defined peptides.
+    
+    Return:
+        triplette: Simplified protein-peptide graph, proteins that did not have enough peptides, and Beckham's razor proteins (go Victoria!). 
+    """
+    G = ProtPepGraph((r,p) for rs, p in zip(data[proteins_col], data.index) for r in rs)
+    prots_without_enough_peps = {r for r in G.prots() if G.degree(r) < min_pepNo_per_prot}
+    G.remove_nodes_from(prots_without_enough_peps)
+    H = G.form_groups()
+    HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover.
+    beckhams_razor_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
+    H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
+    H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
+    return H, prots_without_enough_peps, beckhams_razor_prots

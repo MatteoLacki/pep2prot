@@ -11,11 +11,10 @@ pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 40)#display whole column without truncation
 
-
 from aa2atom import aa2atom, atom2mass
 from aa2atom.aa2atom import UnknownAminoAcid
 from pep2prot.read import read_isoquant_peptide_report, read_n_check_fastas
-from pep2prot.graphs import ProtPepGraph, BiGraph
+from pep2prot.graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
 from pep2prot.preprocessing import preprocess_isoquant_peptide_report, complex_cluster_buster, simple_cluster_buster
 
 min_pepNo_per_prot = 2
@@ -24,33 +23,17 @@ path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 
 D = read_isoquant_peptide_report(path/'peptide_report.csv')
 D, I_cols = preprocess_isoquant_peptide_report(D)
-unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions', 'pi', 'mw']
-
+unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
+# X = D.groupby(D.index).nunique().nunique() # the double unique beast!
 D2 = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
-# F = simple_cluster_buster(D, I_cols, unique_columns)
+D3 = simple_cluster_buster(D, I_cols, unique_columns)
 
 prot2seq = {r for rg in D2.prots for r in rg}
-prot2seq = read_n_check_fastas(path/'mouse.fasta', obs_prots)
+prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
 
-unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
 # aggregate the same peptides in different clusters
-# X = D_pep.nunique().nunique() # the double unique beast!
-
-# Fun begins here:   peptide BLUE   protein: RED
-def get_graph(data, min_pepNo_per_prot=2):
-    """Get the petide-protein-groups graph."""
-    G = ProtPepGraph((r,p) for rs, p in zip(data.prots, data.pep) for r in rs)
-    prots_without_enough_peps = [r for r in G.prots() if G.degree(r) < min_pepNo_per_prot]
-    G.remove_nodes_from(prots_without_enough_peps)
-    H = G.form_groups()
-    HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover
-    beckhams_razor_prots = [r for rg in H.prots() if rg not in HMC for r in rg]
-    H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
-    HF.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
-    return H
-
-HE = get_graph(E)
-HF = get_graph(F)
+H2, RWEP2, BRR2 = get_peptide_protein_graph(D2)
+H3, RWEP3, BRR3 = get_peptide_protein_graph(D3)
 
 # NOW: FINALLY THE BLOODY REPORT
 # we also need to merge H nodes again???
