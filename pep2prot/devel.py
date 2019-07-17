@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
-pd.set_option('display.max_colwidth', 40)#display whole column without truncation
+pd.set_option('display.max_colwidth', 60)#display whole column without truncation
 
 from aa2atom import aa2atom, atom2mass
 from aa2atom.aa2atom import UnknownAminoAcid
@@ -35,41 +35,95 @@ prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
 # aggregate the same peptides in different clusters
 H2, RWEP2, BRR2 = get_peptide_protein_graph(D2)
 H3, RWEP3, BRR3 = get_peptide_protein_graph(D3)
-
 H = H2
 
-# TESTING IF ALL NODES HAVE DIFFERENT NEIGHBORS
-x = Counter(frozenset(H[r]) for r in H.prots())
-Counter(x.values())
-x = Counter(frozenset(H[r]) for r in H.peps())
-Counter(x.values())
-
-
 # NOW: FINALLY THE BLOODY REPORT
-%%time
 pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 D2 = DD.loc[pep2pepgr] # peps in H (no simple prot-pep pairs)
 D2.drop(('prots'), axis=1, inplace=True)
-pepgrI = D2[I_cols].groupby(pep2pepgr).sum()# peptide group intensities
-# pepgrI_rg = pepgrI.groupby(lambda pg: frozenset(H[pg]))
-# pepgrI_rg.sum()
-Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(),
-                                columns=('protgr','pepgr'),
-                                index='protgr')
-Hdf = Hdf.join(pepgrI, on='pepgr')
-Hdf_protgr = Hdf.groupby(Hdf.index)
-protgr_max_I = Hdf_protgr.sum()
-# making min intensities
-pepgr_sizes = pd.DataFrame(Hdf.groupby('pepgr').size(),
-                           columns=['pepgr_neighbors_cnt'])
-Hdf = Hdf.join(pepgr_sizes, on='pepgr')
+peps_I = D2[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+# DataFrame equivalent of H, with repeated intensities for peptide groups
 
-x = Hdf.query("pepgr_neighbors_cnt==1")
-np.all(x.groupby(x.index).size() == 1)
-# do we have again more peptide
+# %%timeit
+# Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(),
+#                                 columns=('protgr','pepgr'),
+#                                 index='protgr')
+# Hdf = Hdf.join(peps_I, on='pepgr')
+# Hdf_protgr = Hdf.groupby(Hdf.index)
+# prots_max_I = Hdf_protgr[I_cols].sum()# maximal intensity per protein group
+# uni_peps = {pg for pg in H.peps() if H.degree(pg) == 1}
+# prots_min_I_short = Hdf[I_cols][Hdf.pepgr.isin(uni_peps)]# sure intensities
+# blade_prots = set(H.prots()) - set(prots_min_I_short.index)# have no unique peptides
+# blade_prots_sure_I = pd.DataFrame(np.zeros(shape=(len(blade_prots), prots_min_I_short.shape[1])),
+#                                   index=blade_prots, columns=prots_min_I_short.columns)
+# prots_min_I = pd.concat([prots_min_I_short, blade_prots_sure_I])#minimal intensity per protein group
+## 128 ms ± 5.88 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+# coup de grace: the deconvoluted intensities: this will require some linear transformation of Hdf
 
 
-Hdf_protgr.apply(lambda x: x if x.shape[0] == 1 else 0)
+# investigating multi-index: more transparent? 
+# Yes: I am populating the intensities of graph edges!
+
+prot_pep = ('prot','pep')
+Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=prot_pep, index=prot_pep)
+Hdf = Hdf.join(peps_I, on='pep')
+prots_max_I = Hdf[I_cols].groupby(level='prot').sum()# maximal intensity per protein group
+unipeps = {pg for pg in H.peps() if H.degree(pg) == 1}
+unipeps2prots = Hdf[I_cols][Hdf.index.get_level_values('pep').isin(unipeps)]
+uniprots = unipeps2prots.reset_index('pep', drop=True)
+prots_with_unipeps = unipeps2prots.index.unique('prot')
+blade_prots = {r for r in H.prots() if not r in prots_with_unipeps}
+blade_prots_zero_I = pd.DataFrame(np.zeros(shape=(len(blade_prots),
+                                                  len(unipeps2prots.columns))),
+                                  index=blade_prots,
+                                  columns=unipeps2prots.columns)
+prots_min_I = pd.concat([uniprots, blade_prots_zero_I])
+
+# peptides to proteins that have themeselves no unique peptides
+blade_peps = {p for r in blade_prots for p in H[r] if all(rr in blade_prots for rr in H[p])}
+# add exceptions if some things are not there: like the above!
+
+blade_peps_I = peps_I.loc[blade_peps]
+blade_peps_protcnts = pd.Series((H.degree(p) for p in blade_peps), index=blade_peps_I.index)
+blade_peps2prots = pd.DataFrame.from_records(((r,p) for p in blade_peps for r in H[p]),
+                                             columns=prot_pep, index=prot_pep)
+# divide each intensity by its specific number of neighboring prots
+blade_peps2prots = blade_peps2prots.join(blade_peps_I.div(blade_peps_protcnts,
+                                                          axis='index'), on='pep')
+other_peps = {p for p in H.peps() if p not in unipeps and p not in blade_peps}
+other_peps_I = peps_I.loc[other_peps]
+blade_prots_I = blade_peps2prots.reset_index('pep', drop=True)
+
+# now I need all the proteins with current annotations:
+prots_I = pd.concat([uniprots, blade_prots_I])
+# need weights for splitting the intenisities of other_peps_I
+
+# this needs to be coordinatewise multiplied by weights of each edge
+x = pd.DataFrame(index=Hdf.index).join(other_peps_I, on='pep', how='right')
+
+w = pd.DataFrame(index=Hdf.index).join(prots_I, on='prot')
+# there is problem with division by zero: it should most likely result in 0 weight
+w = w.div(w.groupby(level='pep').sum()).fillna(0.0)
+x*w.loc[x.index] # this did something. Is it what I needed?
+# figure out the details tomorrow.
+
+
+
+
+
+
+
+# pepgr_sizes = pd.DataFrame(Hdf.groupby('pepgr').size(),
+#                            columns=['pepgr_neighbors_cnt'])
+# Hdf = Hdf.join(pepgr_sizes, on='pepgr')
+# protgr_min_I = Hdf.query("pepgr_neighbors_cnt==1").copy()
+# protgr_min_I.drop(['pepgr_neighbors_cnt', 'pepgr'], axis=1, inplace=True)
+
+
+
+
+
+
 
 
 

@@ -228,6 +228,7 @@ def get_peptide_protein_graph(data, min_pepNo_per_prot=2, proteins_col='prots'):
 
 
 def test_node_merger():
+    """TESTING IF ALL NODES HAVE DIFFERENT NEIGHBORS."""
     min_pepNo_per_prot = 2
     max_rt_deviation = 1
     path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
