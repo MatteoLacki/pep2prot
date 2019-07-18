@@ -64,67 +64,67 @@ peps_I = D2[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 # investigating multi-index: more transparent? 
 # Yes: I am populating the intensities of graph edges!
 
+# blade = razor??? probably not, so stick with blade.
 prot_pep = ('prot','pep')
 Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=prot_pep, index=prot_pep)
-Hdf = Hdf.join(peps_I, on='pep')
-prots_max_I = Hdf[I_cols].groupby(level='prot').sum()# maximal intensity per protein group
-unipeps = {pg for pg in H.peps() if H.degree(pg) == 1}
-unipeps2prots = Hdf[I_cols][Hdf.index.get_level_values('pep').isin(unipeps)]
-uniprots = unipeps2prots.reset_index('pep', drop=True)
-prots_with_unipeps = unipeps2prots.index.unique('prot')
-blade_prots = {r for r in H.prots() if not r in prots_with_unipeps}
-blade_prots_zero_I = pd.DataFrame(np.zeros(shape=(len(blade_prots),
-                                                  len(unipeps2prots.columns))),
-                                  index=blade_prots,
-                                  columns=unipeps2prots.columns)
-prots_min_I = pd.concat([uniprots, blade_prots_zero_I])
+peps2prots_max_I   = Hdf.join(peps_I, on='pep')
+peps2prots         = peps2prots_max_I.index
+##############################################################################
+prots_max_I        = peps2prots_max_I.groupby(level='prot').sum()## RESULT ###
+##############################################################################
+unipeps            = pd.Index((pg for pg in H.peps() if H.degree(pg) == 1),
+                              name='pep') # peps unique for some proteins
+unipeps2prots_I    = peps2prots_max_I[peps2prots.get_level_values('pep').isin(unipeps)]
+# there is one unique peptide per protein, so _I == _max_I == _min_I
+uniprots_min_I     = unipeps2prots_I.reset_index('pep', drop=True)
+uniprots           = uniprots_min_I.index # prots with some uniquely identified peptides
+bladeprots         = pd.Index((r for r in H.prots() if not r in uniprots), name='prot')
+bladeprots_zero_I  = pd.DataFrame(np.zeros(shape=(len(bladeprots),
+                                                  len(unipeps2prots_I.columns))),
+                                  index=bladeprots, columns=unipeps2prots_I.columns)
+# prots = uniprots ⊔ bladeprots
+#########################################################################
+prots_min_I = pd.concat([uniprots_min_I, bladeprots_zero_I])## RESULT ###
+#########################################################################
+uniprots_curr_I = uniprots_min_I# reusable: intensity from unique peps pushed to uniprots
+bladepeps = pd.Index({p for r in bladeprots 
+                         for p in H[r] if all(rr in bladeprots for rr in H[p])},
+                     name='pep')# peps with prots without unique peps
+bladepeps_I = peps_I.loc[bladepeps]
+bladepeps_protcnts = pd.Series((H.degree(p) for p in bladepeps), index=bladepeps)
+# distribute blade peps intensity uniformly among neighbor prots: hence the division below
+bladepeps2bladeprots_I = pd.DataFrame.from_records(
+    ((r,p) for p in bladepeps for r in H[p]), 
+    columns=prot_pep,
+    index=prot_pep).join( bladepeps_I.div(bladepeps_protcnts, axis='index'), on='pep')
+bladeprots_curr_I = bladepeps2bladeprots_I.groupby(level='prot').sum()
+# bladeprots might receive some more intensity from other peptides, hence _curr_I.
+# peps = unipeps ⊔ bladepeps ⊔ otherpeps
+# unipeps neighbor uniprots, bladepeps neighbor bladeprots, otherpeps neighbor some prots from both sets
+otherpeps    = pd.Index({p for p in H.peps() if p not in unipeps and p not in bladepeps}, name='pep')
+otherpeps_I  = peps_I.loc[otherpeps]# these intensities have to be distributed with weights proportional to the intensities that prots received from bladepeps and unipeps. Call these the current intensities, curr_I.
+# bladeprots and uniprots are disjoint sets, so we concat them
+prots_curr_I = pd.concat([uniprots_curr_I, bladeprots_curr_I])
 
-# peptides to proteins that have themeselves no unique peptides
-blade_peps = {p for r in blade_prots for p in H[r] if all(rr in blade_prots for rr in H[p])}
-# add exceptions if some things are not there: like the above!
-
-blade_peps_I = peps_I.loc[blade_peps]
-blade_peps_protcnts = pd.Series((H.degree(p) for p in blade_peps), index=blade_peps_I.index)
-blade_peps2prots = pd.DataFrame.from_records(((r,p) for p in blade_peps for r in H[p]),
-                                             columns=prot_pep, index=prot_pep)
-# divide each intensity by its specific number of neighboring prots
-blade_peps2prots = blade_peps2prots.join(blade_peps_I.div(blade_peps_protcnts,
-                                                          axis='index'), on='pep')
-other_peps = {p for p in H.peps() if p not in unipeps and p not in blade_peps}
-other_peps_I = peps_I.loc[other_peps]
-blade_prots_I = blade_peps2prots.reset_index('pep', drop=True)
-
-# now I need all the proteins with current annotations:
-prots_I = pd.concat([uniprots, blade_prots_I])
-# need weights for splitting the intenisities of other_peps_I
-
-# this needs to be coordinatewise multiplied by weights of each edge
-x = pd.DataFrame(index=Hdf.index).join(other_peps_I, on='pep', how='right')
-
-w = pd.DataFrame(index=Hdf.index).join(prots_I, on='prot')
-# there is problem with division by zero: it should most likely result in 0 weight
-w = w.div(w.groupby(level='pep').sum()).fillna(0.0)
-x*w.loc[x.index] # this did something. Is it what I needed?
-# figure out the details tomorrow.
-
-
-
-
-
-
-
-# pepgr_sizes = pd.DataFrame(Hdf.groupby('pepgr').size(),
-#                            columns=['pepgr_neighbors_cnt'])
-# Hdf = Hdf.join(pepgr_sizes, on='pepgr')
-# protgr_min_I = Hdf.query("pepgr_neighbors_cnt==1").copy()
-# protgr_min_I.drop(['pepgr_neighbors_cnt', 'pepgr'], axis=1, inplace=True)
-
-
-
-
-
-
-
+# populating edges with other intensities from otherpeps. Let's call their prots mixprots
+otherpeps2mixprots_I = pd.DataFrame(index=peps2prots).join(otherpeps_I, on='pep', how='right')
+otherpeps2mixprots = otherpeps2mixprots_I.index
+mixprots = otherpeps2mixprots_I.index.get_level_values('prot').unique()
+# need weights for otherpeps2mixprots_I
+weights = pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
+# need to update pep groups with only zeros to ones.
+weights_mixprot_I = weights.groupby(level='pep').sum()
+# artificially set total intensities to 1, if it was 0.
+# It was zero, only if both proteins had 0 intensity. Ha!!! FUCK YOU IMPRUDENCE!!!
+weights_mixprot_I[weights_mixprot_I == 0] = 1.0
+weights = weights.div(weights_mixprot_I, axis='index')
+assert not np.any(weights.isnull()), "Weight cannot result in any NaNs."
+otherpeps2mixprots_I = otherpeps2mixprots_I * weights
+#update only mixprots
+prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby(level='prot').sum()
+########################################################################
+prots_I = prots_curr_I ## RESULT #######################################
+########################################################################
 
 
 
