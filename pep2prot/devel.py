@@ -42,29 +42,6 @@ pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 D2 = DD.loc[pep2pepgr] # peps in H (no simple prot-pep pairs)
 D2.drop(('prots'), axis=1, inplace=True)
 peps_I = D2[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
-# DataFrame equivalent of H, with repeated intensities for peptide groups
-
-# %%timeit
-# Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(),
-#                                 columns=('protgr','pepgr'),
-#                                 index='protgr')
-# Hdf = Hdf.join(peps_I, on='pepgr')
-# Hdf_protgr = Hdf.groupby(Hdf.index)
-# prots_max_I = Hdf_protgr[I_cols].sum()# maximal intensity per protein group
-# uni_peps = {pg for pg in H.peps() if H.degree(pg) == 1}
-# prots_min_I_short = Hdf[I_cols][Hdf.pepgr.isin(uni_peps)]# sure intensities
-# blade_prots = set(H.prots()) - set(prots_min_I_short.index)# have no unique peptides
-# blade_prots_sure_I = pd.DataFrame(np.zeros(shape=(len(blade_prots), prots_min_I_short.shape[1])),
-#                                   index=blade_prots, columns=prots_min_I_short.columns)
-# prots_min_I = pd.concat([prots_min_I_short, blade_prots_sure_I])#minimal intensity per protein group
-## 128 ms ± 5.88 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
-# coup de grace: the deconvoluted intensities: this will require some linear transformation of Hdf
-
-
-# investigating multi-index: more transparent? 
-# Yes: I am populating the intensities of graph edges!
-
-# blade = razor??? probably not, so stick with blade.
 
 prot_pep = ('prot','pep')
 Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=prot_pep, index=prot_pep)
@@ -79,6 +56,7 @@ unipeps2prots_I    = peps2prots_max_I[peps2prots.get_level_values('pep').isin(un
 # there is one unique peptide per protein, so _I == _max_I == _min_I
 uniprots_min_I     = unipeps2prots_I.reset_index('pep', drop=True)
 uniprots           = uniprots_min_I.index # prots with some uniquely identified peptides
+# blade = razor??? probably not, so stick with blade.
 bladeprots         = pd.Index((r for r in H.prots() if not r in uniprots), name='prot')
 bladeprots_zero_I  = pd.DataFrame(np.zeros(shape=(len(bladeprots),
                                                   len(unipeps2prots_I.columns))),
@@ -135,8 +113,17 @@ assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smalle
 assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
 
 
+# some stats needed on equalities
+def get_stats(prots_min_I, prots_I, prots_max_I):
+    res = pd.concat([(prots_min_I < prots_I).sum()/len(prots_I),
+                      (prots_I < prots_max_I).sum()/len(prots_I),
+                      (prots_min_I == prots_I).sum()/len(prots_I),
+                      (prots_I == prots_max_I).sum()/len(prots_I)],
+                    axis=1)
+    res.columns=['min < dec', 'dec < max', 'min = dec', 'dec = max']
+    return res
 
-# reporting
+# reporting finally
 for rgr in R.prots():
     if len(rgr) > 2:
         break
