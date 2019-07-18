@@ -11,13 +11,10 @@ pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 60)#display whole column without truncation
 
-from aa2atom import aa2atom, atom2mass
-from aa2atom.aa2atom import UnknownAminoAcid
 from pep2prot.read import read_isoquant_peptide_report, read_n_check_fastas
 from pep2prot.graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
 from pep2prot.preprocessing import preprocess_isoquant_peptide_report, complex_cluster_buster, simple_cluster_buster
-
-eps = np.finfo(type(weights.iloc[0,0])).eps# machine precision
+from pep2prot.protein_reps import choose_reps
 
 min_pepNo_per_prot = 2
 max_rt_deviation = 1
@@ -99,7 +96,8 @@ otherpeps2mixprots_I = pd.DataFrame(index=peps2prots).join(otherpeps_I, on='pep'
 otherpeps2mixprots = otherpeps2mixprots_I.index
 mixprots = otherpeps2mixprots_I.index.get_level_values('prot').unique()
 # need weights for otherpeps2mixprots_I
-weights = pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
+weights =  pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
+eps     =  np.finfo(type(weights.iloc[0,0])).eps# machine precision
 weights += eps# whenever we have 0,0,0, we spread intensities proportionally to eps/3eps = 1/3, rather than 0/0.
 weights_mixprot_I = weights.groupby('pep').sum()
 weights = weights.div(weights_mixprot_I, axis='index')
@@ -126,38 +124,10 @@ def get_stats(prots_min_I, prots_I, prots_max_I):
     res.columns=['min < dec', 'dec < max', 'min = dec', 'dec = max']
     return res
 
-def aa2mass(aa, which_mass='monoisotopic', _big_error_mass=1e12):
-    try:
-        f = aa2atom(aa)
-        return atom2mass(f, which_mass)
-    except UnknownAminoAcid as uaa:
-        return _big_error_mass
+prot_reps = choose_reps(prots, prot2seq)
+prots_I['reps'] = prot_reps
+prots_min_I['reps'] = prot_reps
+prots_max_I['reps'] = prot_reps
+# OK, now need to add in information!
 
-def choose_reps(prot_groups):
-    """Choose representatives of protein groups."""
-    trivial_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups if len(rg)==1 for r in rg)
-    trivial_prot_reps.columns = ('protgroup', 'prot')
-    intriguing_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups if len(rg) > 1 for r in rg)
-    intriguing_prot_reps.columns = ('protgroup', 'prot')
-    intriguing_prot_reps['seq'] = intriguing_prot_reps.prot.map(prot2seq)
-    intriguing_prot_reps['seq_len'] = intriguing_prot_reps.seq.map(len)
-    intriguing_prot_reps['mass'] = intriguing_prot_reps.seq.map(aa2mass)
-    intriguing_prot_reps.sort_values(['protgroup','seq_len','mass','prot'], inplace=True)
-    intriguing_prot_reps = intriguing_prot_reps.groupby('protgroup').head(1)
-    res = pd.concat([intriguing_prot_reps[['protgroup', 'prot']], trivial_prot_reps])
-    res.columns = ['prot', 'repr']
-    res.set_index('prot', inplace=True)
-    return res
-
-choose_reps(prots)
-
-
-
-def report(R):
-    for cc in R.components():
-        p_cnt, r_cnt = cc.nodes_cnt()
-        if r_cnt == 0: # a single peptide
-            yield 'gowno' 
-        if r_cnt == 1:
-            yield simple_report(cc)
 
