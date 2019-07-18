@@ -49,9 +49,9 @@ prot_pep = ('prot','pep')
 Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=prot_pep, index=prot_pep)
 peps2prots_max_I   = Hdf.join(peps_I, on='pep')
 peps2prots         = peps2prots_max_I.index
-##############################################################################
-prots_max_I        = peps2prots_max_I.groupby(level='prot').sum()## RESULT ###
-##############################################################################
+########################################################################
+prots_max_I        = peps2prots_max_I.groupby('prot').sum()## RESULT ###
+########################################################################
 unipeps            = pd.Index((pg for pg in H.peps() if H.degree(pg) == 1),
                               name='pep') # peps unique for some proteins
 unipeps2prots_I    = peps2prots_max_I[peps2prots.get_level_values('pep').isin(unipeps)]
@@ -83,7 +83,7 @@ bladepeps2bladeprots_I = pd.DataFrame.from_records(
     ((r,p) for p in bladepeps for r in H[p]), 
     columns=prot_pep,
     index=prot_pep).join( bladepeps_I.div(bladepeps_protcnts, axis='index'), on='pep')
-bladeprots_curr_I = bladepeps2bladeprots_I.groupby(level='prot').sum()
+bladeprots_curr_I = bladepeps2bladeprots_I.groupby('prot').sum()
 # bladeprots might receive some more intensity from other peptides, hence _curr_I.
 # peps = unipeps ⊔ bladepeps ⊔ otherpeps
 # unipeps neighbor uniprots, bladepeps neighbor bladeprots, otherpeps neighbor some prots from both sets
@@ -100,38 +100,31 @@ otherpeps2mixprots = otherpeps2mixprots_I.index
 mixprots = otherpeps2mixprots_I.index.get_level_values('prot').unique()
 # need weights for otherpeps2mixprots_I
 weights = pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
-weights += eps
-weights_mixprot_I = weights.groupby(level='pep').sum()
+weights += eps# whenever we have 0,0,0, we spread intensities proportionally to eps/3eps = 1/3, rather than 0/0.
+weights_mixprot_I = weights.groupby('pep').sum()
 weights = weights.div(weights_mixprot_I, axis='index')
 
 assert not np.any(weights.isnull()), "Weight cannot result in any NaNs."
 otherpeps2mixprots_I = otherpeps2mixprots_I * weights
-#update only mixprots
-prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby(level='prot').sum()
+# update only mixprots
+prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby('prot').sum()
 ########################################################################
 prots_I = prots_curr_I.loc[sorted_prots] ## RESULT #####################
 ########################################################################
 assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smaller then minimal intensities."
 assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
+prots = prots_I.index
+
 
 # some stats needed on equalities
 def get_stats(prots_min_I, prots_I, prots_max_I):
     res = pd.concat([(prots_min_I < prots_I).sum()/len(prots_I),
-                      (prots_I < prots_max_I).sum()/len(prots_I),
-                      (prots_min_I == prots_I).sum()/len(prots_I),
-                      (prots_I == prots_max_I).sum()/len(prots_I)],
+                     (prots_I < prots_max_I).sum()/len(prots_I),
+                     (prots_min_I == prots_I).sum()/len(prots_I),
+                     (prots_I == prots_max_I).sum()/len(prots_I)],
                     axis=1)
     res.columns=['min < dec', 'dec < max', 'min = dec', 'dec = max']
     return res
-
-
-
-
-
-# reporting finally
-for rgr in R.prots():
-    if len(rgr) > 2:
-        break
 
 def aa2mass(aa, which_mass='monoisotopic', _big_error_mass=1e12):
     try:
@@ -140,51 +133,24 @@ def aa2mass(aa, which_mass='monoisotopic', _big_error_mass=1e12):
     except UnknownAminoAcid as uaa:
         return _big_error_mass
 
-# maybe these operations could be performed beforand on all things?
-# select all the proteins in R and build up one dataframe.
+def choose_reps(prot_groups):
+    """Choose representatives of protein groups."""
+    trivial_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups if len(rg)==1 for r in rg)
+    trivial_prot_reps.columns = ('protgroup', 'prot')
+    intriguing_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups if len(rg) > 1 for r in rg)
+    intriguing_prot_reps.columns = ('protgroup', 'prot')
+    intriguing_prot_reps['seq'] = intriguing_prot_reps.prot.map(prot2seq)
+    intriguing_prot_reps['seq_len'] = intriguing_prot_reps.seq.map(len)
+    intriguing_prot_reps['mass'] = intriguing_prot_reps.seq.map(aa2mass)
+    intriguing_prot_reps.sort_values(['protgroup','seq_len','mass','prot'], inplace=True)
+    intriguing_prot_reps = intriguing_prot_reps.groupby('protgroup').head(1)
+    res = pd.concat([intriguing_prot_reps[['protgroup', 'prot']], trivial_prot_reps])
+    res.columns = ['prot', 'repr']
+    res.set_index('prot', inplace=True)
+    return res
 
-# not all needed: only those, that ain't unique: and maybe not those, that are within
+choose_reps(prots)
 
-r_df = pd.DataFrame.from_records(((r,i,c) for i,c in enumerate(R.components())
-                                           for r_gr in c.prots() if len(r_gr)>1
-                                            for r in r_gr),
-                                 columns=('prot','cc_index','cc'))
-# r_df = pd.DataFrame({'prot':list(r for r_gr in R.prots() if len(r_gr) > 1 for r in r_gr)})
-r_df['seq'] = r_df.prot.map(accession2seq)
-r_df['len'] = r_df.seq.map(len)
-r_df['mass'] = r_df.seq.map(aa2mass) # this take the most runtime
-r_df.sort_values(['cc_index','len', 'mass', 'prot'], inplace=True)
-
-
-
-#TODO: rewrite without pandas and faster.
-def trivial_representative_prot(r_gr):
-    """Choose a representative of a group of proteins."""
-    r_df = pd.DataFrame({'prot':list(r_gr)})
-    r_df['seq'] = r_df.prot.map(accession2seq)
-    r_df['seq_len'] = r_df.seq.map(len)
-    r_df['mass'] = r_df.seq.map(aa2mass)
-    r_df.sort_values(['seq_len', 'mass', 'prot'], ascending=[True, True, True], inplace=True)
-    return dict(r_df.iloc[0])
-
-
-X = [trivial_representative_prot(r_gr)['prot'] if len(r_gr) > 2 else next(r for r in r_gr)
-     for r_gr in R.prots()]
-
-
-
-
-it = R.components()
-cc = next(it)
-r = next(cc.B())
-D = D.set_index('pep')
-
-# fastes way to divide the data
-pep2cc = {p: i for i, cc in enumerate(R.components()) for pg in cc.peps() for p in pg}
-x = list(D.groupby(pep2cc))
-x[0]
-
-# add in the fasta file
 
 
 def report(R):
