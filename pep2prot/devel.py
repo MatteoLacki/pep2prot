@@ -17,6 +17,8 @@ from pep2prot.read import read_isoquant_peptide_report, read_n_check_fastas
 from pep2prot.graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
 from pep2prot.preprocessing import preprocess_isoquant_peptide_report, complex_cluster_buster, simple_cluster_buster
 
+eps = np.finfo(type(weights.iloc[0,0])).eps# machine precision
+
 min_pepNo_per_prot = 2
 max_rt_deviation = 1
 path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
@@ -86,7 +88,9 @@ bladeprots_curr_I = bladepeps2bladeprots_I.groupby(level='prot').sum()
 # peps = unipeps ⊔ bladepeps ⊔ otherpeps
 # unipeps neighbor uniprots, bladepeps neighbor bladeprots, otherpeps neighbor some prots from both sets
 otherpeps    = pd.Index({p for p in H.peps() if p not in unipeps and p not in bladepeps}, name='pep')
-otherpeps_I  = peps_I.loc[otherpeps]# these intensities have to be distributed with weights proportional to the intensities that prots received from bladepeps and unipeps. Call these the current intensities, curr_I.
+otherpeps_I  = peps_I.loc[otherpeps]
+# above intensities will be distributed proportionally to intensities prots received from bladepeps and unipeps.
+# call these the current intensities, curr_I.
 # bladeprots and uniprots are disjoint sets, so we concat them
 prots_curr_I = pd.concat([uniprots_curr_I, bladeprots_curr_I])
 
@@ -96,12 +100,10 @@ otherpeps2mixprots = otherpeps2mixprots_I.index
 mixprots = otherpeps2mixprots_I.index.get_level_values('prot').unique()
 # need weights for otherpeps2mixprots_I
 weights = pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
-# need to update pep groups with only zeros to ones.
+weights += eps
 weights_mixprot_I = weights.groupby(level='pep').sum()
-# artificially set total intensities to 1, if it was 0.
-# It was zero, only if both proteins had 0 intensity. Ha!!! FUCK YOU IMPRUDENCE!!!
-weights_mixprot_I[weights_mixprot_I == 0] = 1.0
 weights = weights.div(weights_mixprot_I, axis='index')
+
 assert not np.any(weights.isnull()), "Weight cannot result in any NaNs."
 otherpeps2mixprots_I = otherpeps2mixprots_I * weights
 #update only mixprots
@@ -111,7 +113,6 @@ prots_I = prots_curr_I.loc[sorted_prots] ## RESULT #####################
 ########################################################################
 assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smaller then minimal intensities."
 assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
-
 
 # some stats needed on equalities
 def get_stats(prots_min_I, prots_I, prots_max_I):
@@ -123,38 +124,14 @@ def get_stats(prots_min_I, prots_I, prots_max_I):
     res.columns=['min < dec', 'dec < max', 'min = dec', 'dec = max']
     return res
 
+
+
+
+
 # reporting finally
 for rgr in R.prots():
     if len(rgr) > 2:
         break
-
-
-# R = ProtPepGraph((r,p) for pH in H.peps() if H.degree(pH)==1
-#                   for r in H[pH] for p in H[r])
-# I = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if p not in R)
-# for e in I.AB():
-#     R.add_AB_edge(*e)
-# J = ProtPepGraph((r,p) for r,p in H.prot_pep_pairs() if r in I)
-# R = R.form_groups(merging_merged=True)
-# # return H, R, I, J
-# H, R, I, J = simplify(G)
-
-# Facilitate the task by including the supported edges.
-# supported = BiGraph((a,b) for c in G.B() if G.degree(c)==1
-#                     for a in G[c] for b in G[a])
-# supported.draw(with_labels=True)
-# unsupported = BiGraph((a,b) for a,b in G.AB() if b not in supported)
-# unsupported.draw(with_labels=True)
-# input for MSC, if not a cycle
-
-
-
-# something is still wrong here: one protein group should have at most one peptide group with deg=1.
-
-I_pgr.loc[R[rgr]].sum() # maximal intensity per run for a protein group
-I_pgr.loc[(p for p in R[rgr] if R.degree(p) == 1)].sum() # minimal
-# how can we have two peptide groups at this point with deg 1? We don't now.
-
 
 def aa2mass(aa, which_mass='monoisotopic', _big_error_mass=1e12):
     try:
