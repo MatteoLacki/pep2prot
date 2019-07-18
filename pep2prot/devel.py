@@ -65,6 +65,7 @@ peps_I = D2[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 # Yes: I am populating the intensities of graph edges!
 
 # blade = razor??? probably not, so stick with blade.
+
 prot_pep = ('prot','pep')
 Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=prot_pep, index=prot_pep)
 peps2prots_max_I   = Hdf.join(peps_I, on='pep')
@@ -86,6 +87,11 @@ bladeprots_zero_I  = pd.DataFrame(np.zeros(shape=(len(bladeprots),
 #########################################################################
 prots_min_I = pd.concat([uniprots_min_I, bladeprots_zero_I])## RESULT ###
 #########################################################################
+sorted_prots = np.sort(prots_min_I.index)
+prots_min_I = prots_min_I.loc[sorted_prots]
+prots_max_I = prots_max_I.loc[sorted_prots]
+assert np.all(prots_min_I <= prots_max_I), "Some minimal intensities are not smaller then the maximal ones. Report to Matteo."
+
 uniprots_curr_I = uniprots_min_I# reusable: intensity from unique peps pushed to uniprots
 bladepeps = pd.Index({p for r in bladeprots 
                          for p in H[r] if all(rr in bladeprots for rr in H[p])},
@@ -123,8 +129,10 @@ otherpeps2mixprots_I = otherpeps2mixprots_I * weights
 #update only mixprots
 prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby(level='prot').sum()
 ########################################################################
-prots_I = prots_curr_I ## RESULT #######################################
+prots_I = prots_curr_I.loc[sorted_prots] ## RESULT #####################
 ########################################################################
+assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smaller then minimal intensities."
+assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
 
 
 
