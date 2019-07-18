@@ -25,15 +25,40 @@ D, I_cols = preprocess_isoquant_peptide_report(D)
 # X = D.groupby(D.index).nunique().nunique() # the double unique beast!
 unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
 D2 = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
-D3 = simple_cluster_buster(D, I_cols, unique_columns)
+# D3 = simple_cluster_buster(D, I_cols, unique_columns)
 DD = D2
 
 prot2seq = {r for rg in D2.prots for r in rg}
 prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
 
+
+
+
+from furious_fastas.fastas import UniprotFastas
+
+def read_fastas_df(path):
+    fastas = UniprotFastas()
+    fastas.read(path)
+    fastas_df = pd.DataFrame.from_records(
+        (' '.join(f.header.split(' ')[2:]),
+         str(f),
+         f.header.split(' ')[1]) 
+        for f in fastas)
+    fastas_df.columns = ['description', 'sequence', 'accession']
+    assert set(prot2seq) <= set(fastas_df.accession), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
+    return fastas_df
+
+read_fastas_df(path/'mouse.fasta')
+#TODO: modify furious_fastas to result in a quicker read in.
+#TODO: use it above 
+
+
+
+
+
 # aggregate the same peptides in different clusters
 H2, RWEP2, BRR2 = get_peptide_protein_graph(D2)
-H3, RWEP3, BRR3 = get_peptide_protein_graph(D3)
+# H3, RWEP3, BRR3 = get_peptide_protein_graph(D3)
 H = H2
 
 # NOW: FINALLY THE BLOODY REPORT
@@ -113,7 +138,6 @@ assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smalle
 assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
 prots = prots_I.index
 
-
 # some stats needed on equalities
 def get_stats(prots_min_I, prots_I, prots_max_I):
     res = pd.concat([(prots_min_I < prots_I).sum()/len(prots_I),
@@ -125,9 +149,21 @@ def get_stats(prots_min_I, prots_I, prots_max_I):
     return res
 
 prot_reps = choose_reps(prots, prot2seq)
-prots_I['reps'] = prot_reps
+
+def simple_postprocessing(prot_I, prot_reps, I_cols):
+    prot_I = prot_I.join(prot_reps)
+    cols = list(prot_reps.columns) + I_cols
+    prot_I = prot_I[cols]
+    prot_I = prot_I.set_index('repr')
+    prot_I.index.name = 'protein'
+    return prot_I
+
+prot_deconvoluted = simple_postprocessing(prots_I, prot_reps, I_cols)
+prot_deconvoluted.to_csv(Path(r"~/Projects/pep2prot/simple_protein_report.csv").expanduser())
+
 prots_min_I['reps'] = prot_reps
 prots_max_I['reps'] = prot_reps
-# OK, now need to add in information!
+
+# OK, now need to add in some protein specific information?
 
 

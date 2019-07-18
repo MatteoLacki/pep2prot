@@ -33,6 +33,7 @@ def choose_reps(prot_groups, prot2seq):
     """
     trivial_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups if len(rg)==1 for r in rg)
     trivial_prot_reps.columns = ('protgroup', 'prot')
+    trivial_prot_reps['protein_group'] = trivial_prot_reps.prot
     intriguing_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups if len(rg) > 1 for r in rg)
     intriguing_prot_reps.columns = ('protgroup', 'prot')
     intriguing_prot_reps['seq'] = intriguing_prot_reps.prot.map(prot2seq)
@@ -40,7 +41,8 @@ def choose_reps(prot_groups, prot2seq):
     intriguing_prot_reps['mass'] = intriguing_prot_reps.seq.map(aa2mass)
     intriguing_prot_reps.sort_values(['protgroup','seq_len','mass','prot'], inplace=True)
     intriguing_prot_reps = intriguing_prot_reps.groupby('protgroup').head(1)
-    res = pd.concat([intriguing_prot_reps[['protgroup', 'prot']], trivial_prot_reps])
-    res.columns = ['prot', 'repr']
+    intriguing_prot_reps['protein_group'] = intriguing_prot_reps.protgroup.map(lambda x: " ".join(x))
+    res = pd.concat([intriguing_prot_reps[['protgroup', 'prot', 'protein_group']], trivial_prot_reps])
+    res.columns = ['prot','repr','protein_group']
     res.set_index('prot', inplace=True)
     return res
