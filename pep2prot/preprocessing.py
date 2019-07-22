@@ -46,7 +46,7 @@ def complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation=1):
         pd.DataFrame : filtered data uniquely indexed by peptides.
     """
     DD = D.copy()
-    D_pep = DD.groupby(DD.index)
+    D_pep = DD.groupby('pep')
     pep_size = D_pep.size()
     D_mul_uni = DD.groupby(pd.Series(np.where(pep_size.values > 1, 'mul', 'uni'), pep_size.index))
     uni = D_mul_uni.get_group('uni')
@@ -76,7 +76,7 @@ def simple_cluster_buster(D, I_cols, unique_columns):
     Returns:
         pd.DataFrame : filtered data uniquely indexed by peptides.
     """
-    D_pep = D.groupby(D.index)
+    D_pep = D.groupby('pep')
     aggregated_intensities = D_pep[I_cols].sum()
     no_change_here = D_pep[unique_columns].head(1)
     res = pd.concat([aggregated_intensities, no_change_here], axis=1, sort=True)

@@ -23,56 +23,121 @@ path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 
 D = read_isoquant_peptide_report(path/'peptide_report.csv')
 D, I_cols = preprocess_isoquant_peptide_report(D)
-# X = D.groupby(D.index).nunique().nunique() # the double unique beast!
+
 unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
+
+# X = D.groupby(D.index).nunique().nunique() # the double unique beast!
 # X[['start','end']]
 # strano_start = D[D.groupby('pep').start.nunique() != 1]
 # strano_start[['start','end']]
 # strano_start.loc['AGVHIK']
 
+observed_prots  = {r for rg in D.prots for r in rg}
+fastas          = read_fastas(path/'mouse.fasta', observed_prots)
+
+Ds = D[['sequence', 'prots', 'start', 'end']].copy()
+# Ds['prots_cnt'] = Ds.prots.map(len)
+Ds = Ds.rename(columns={'sequence':'pep_seq'})
+prots = pd.DataFrame(((rg,r) for rg in set(Ds.prots) for r in rg), columns=('protgr','prot'))
+prots['prot_seq'] = prots.prot.map(fastas.sequence)
+prots = prots.set_index('protgr')
+Ds = Ds.join(prots, on='prots')
+Ds = Ds[['pep_seq','start', 'end', 'prot_seq']].drop_duplicates()
+Ds['prot_sub_seq'] = [seq[s-1:e] for s,e,seq in zip(Ds.start, Ds.end, Ds.prot_seq)]
+strange = Ds[Ds.pep_seq != Ds.prot_sub_seq]
+strange = Ds.loc[strange.index][['pep_seq', 'prot_sub_seq']]
+strange = strange.drop_duplicates().copy()
+strange['same_seq'] = strange.pep_seq == strange.prot_sub_seq
+x = strange.groupby('pep').same_seq.sum()
+very_strange = x[~x]
+
+VS = Ds.loc[very_strange.index]
+vs = VS.iloc[0]
+vs.pep_seq
+vs.prot_seq[(vs.start-1):vs.end]
+
+
+for pep_seq, s, e, prot_seq in zip(VS.pep_seq, VS.start, VS.end, VS.prot_seq):
+    print(pep_seq, prot_seq[s-1:e], pep_seq in prot_seq)
+# all there, but elsewhere
+
+
+
+
+Counter(Ds.prots_cnt)
+Ds_protcnt = Ds.groupby('prots_cnt')
+
+Ds1 = Ds_protcnt.get_group(1).drop_duplicates()
+Ds1['prot'] = Ds1.prots.map(lambda x: next(iter(x)))
+Ds1 = Ds1.rename(columns={'sequence':'pep_seq'})
+Ds1 = Ds1.join(fastas, on='prot')
+Ds1 = Ds1.rename(columns={'sequence':'prot_seq', 'seq_len':'prot_seq_len'})
+Ds1['prot_sub_seq'] = Ds1.groupby('pep').apply(lambda d: d.prot_seq[0][(d.start[0]-1):d.end[0]])
+
+
+Ds1[Ds1.prot_sub_seq != Ds1.pep_seq]
+all(prot_seq[s-1:e] == pep_seq for prot_seq, pep_seq, s, e in zip(Ds1.prot_seq, Ds1.pep_seq, Ds1.start, Ds1.end))
+    
+assert np.all(Ds.end-Ds.start+1 == Ds.sequence.map(len)), "Reported peptides not as long as end-start+1."
+
+Ds1.sequence
+
+D
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 DD = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
 # DD = simple_cluster_buster(D, I_cols, unique_columns)
-# aggregate the same peptides in different clusters
-H, RWEP, BRR = get_peptide_protein_graph(DD)
+
+
+# check that every peptide truly is a subsequence of a reported protein
+
+H, RWEP, BRR = get_peptide_protein_graph(DD) # aggregate the same peptides in different clusters
 # H, RWEP, BRR = get_peptide_protein_graph(D3)
 
-pep2pepgr = {p:pg for pg in H.peps() for p in pg}
-DD = DD.loc[pep2pepgr] # peps in H (no simple prot-pep pairs)
-# DD.drop(('prots'), axis=1, inplace=True)
-peps_I = DD[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+pep2pepgr   = {p:pg for pg in H.peps() for p in pg}
+DD          = DD.loc[pep2pepgr] # peps in H (no simple prot-pep pairs)
+peps_I      = DD[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
-prots_stats = get_stats(prots_min_I, prots_I, prots_max_I)
+# prots_stats = get_stats(prots_min_I, prots_I, prots_max_I)
 
-prots = prots_I.index
-observed_prots = {r for rg in DD.prots for r in rg}
-fastas = read_fastas(path/'mouse.fasta', observed_prots)
-prot_info = get_info_on_prots(prots, fastas)# find a better name for that function for God's sake...
+prots           = prots_I.index
+prot_info       = get_info_on_prots(prots, fastas)# find a better name for that function for God's sake...
 
-prot2pep = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=('prot','pep'))
+prot2pep            = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=('prot','pep'))
 prot2pep['pep_cnt'] = prot2pep.pep.map(len)
-prot_pep_counts = prot2pep.groupby('prot').pep_cnt.sum()
+prot_pep_counts     = prot2pep.groupby('prot').pep_cnt.sum()
 # calculating the coverage!
-# need to check, if all 
 
 
-n = frozenset(['COX7C_MOUSE'])
-H[n]
-H[next(iter(H[n]))]
-nx.node_connected_component(H,n)
-
-prot2pepLong = pd.DataFrame(((rg, p) for rg in H.prots() 
-                                     for pg in H[rg]
+prot2pepLong = pd.DataFrame(((rg, p) for rg, pg in H.prot_pep_pairs() 
                                      for p  in pg),
                             columns=('prot','pep')).set_index('prot')
-
 
 prot2pepLong = prot2pepLong.join(D[['start','end']], on='pep')
 
 
+s0,e0 = strano_start.loc['AGVHIK'][['start','end']].iloc[1,:]
+s1,e1 = strano_start.loc['AGVHIK'][['start','end']].iloc[0,:]
+KCRU_MOUSE_seq = fastas.loc['KCRU_MOUSE'].sequence
+KCRB_MOUSE_seq = fastas.loc['KCRB_MOUSE'].sequence
 
-
-
-
+KCRU_MOUSE_seq[s0-1:e0]
+KCRU_MOUSE_seq[s1-1:e1]
+KCRB_MOUSE_seq[s1-1:e1]
 
 
 
