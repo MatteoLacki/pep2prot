@@ -17,9 +17,10 @@ def get_stats(prots_min_I, prots_I, prots_max_I):
     res = pd.concat([(prots_min_I < prots_I).sum()/len(prots_I),
                      (prots_I < prots_max_I).sum()/len(prots_I),
                      (prots_min_I == prots_I).sum()/len(prots_I),
-                     (prots_I == prots_max_I).sum()/len(prots_I)],
+                     (prots_I == prots_max_I).sum()/len(prots_I),
+                     (prots_min_I == prots_max_I).sum()/len(prots_I)],
                     axis=1)
-    res.columns=['min < dec', 'dec < max', 'min = dec', 'dec = max']
+    res.columns=['min < dec', 'dec < max', 'min = dec', 'dec = max', 'min = max']
     return res
 
 
