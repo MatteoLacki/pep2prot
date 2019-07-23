@@ -35,19 +35,23 @@ def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
     return D, I_cols
 
 
-def are_pepseqs_in_protseqs(D, fastas):
+def get_sequences(D, fastas):
     """Check if all peptide sequences are subsequences of reported protein sequences.
 
     Args:
         D (pd.DataFrame): Data after initial preprocessing.
         fastas (pd.DataFrame): Data with fastas.
     """
-    pepseq2protseq  = pd.DataFrame(((r,pep_seq) 
-                                    for rg, pep_seq in zip(D.prots, D.sequence)
+    pepseq2protseq  = pd.DataFrame(((p,s,e,r,pep_seq) 
+                                    for p,s,e,rg,pep_seq in zip(D.index,
+                                                                D.start,
+                                                                D.end,
+                                                                D.prots,
+                                                                D.sequence)
                                     for r in rg),
-                                   columns=('prot','pepseq'))
-    pepseq2protseq['protseq'] = pepseq2protseq.prot.map(fastas.sequence)
-    assert all(ps in rs for ps,rs in zip(pepseq2protseq.pepseq, pepseq2protseq.protseq)), "Some peptides are not subsequences of proteins they are reported to explain."
+                                   columns=('pep','start','end','prot','pepseq'))
+    pepseq2protseq['protseq'] = pepseq2protseq.prot.map(fastas.prot_seq)
+    return pepseq2protseq.set_index(['pep','prot'])
 
 
 def complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation=1):

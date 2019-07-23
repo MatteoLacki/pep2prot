@@ -50,9 +50,9 @@ def read_fastas(path, observed_prots):
          str(f),
          f.header.split(' ')[1]) 
         for f in fastas)
-    fastas_df.columns = ['description', 'sequence', 'prot']
+    fastas_df.columns = ['description', 'prot_seq', 'prot']
     fastas_df = fastas_df.set_index('prot')
-    fastas_df['seq_len'] = fastas_df.sequence.map(len)
+    fastas_df['seq_len'] = fastas_df.prot_seq.map(len)
     assert all(fastas_df.groupby('prot').size() == 1), "The provided accesions are not unique and cannot form an index."
     assert all(r in fastas_df.index for r in observed_prots), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
     return fastas_df

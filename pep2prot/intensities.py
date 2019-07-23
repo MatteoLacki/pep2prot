@@ -14,7 +14,7 @@ def get_prot_intensities(H, peps_I):
     Hdf = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=prot_pep, index=prot_pep)
     peps2prots_max_I   = Hdf.join(peps_I, on='pep')
     peps2prots         = peps2prots_max_I.index
-    prots_max_I        = peps2prots_max_I.groupby('prot').sum() ## RESULT
+    prots_max_I        = peps2prots_max_I.groupby('prot').sum()
 
 
     unipeps            = pd.Index((pg for pg in H.peps() if H.degree(pg) == 1),
@@ -29,7 +29,7 @@ def get_prot_intensities(H, peps_I):
                                                       len(unipeps2prots_I.columns))),
                                       index=bladeprots, columns=unipeps2prots_I.columns)
     #   prots = uniprots ⊔ bladeprots    
-    prots_min_I = pd.concat([uniprots_min_I, bladeprots_zero_I]) ## RESULT
+    prots_min_I = pd.concat([uniprots_min_I, bladeprots_zero_I])
 
 
     sorted_prots = np.sort(prots_min_I.index)
@@ -72,7 +72,7 @@ def get_prot_intensities(H, peps_I):
     otherpeps2mixprots_I = otherpeps2mixprots_I * weights
     #   update only mixprots
     prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby('prot').sum()
-    prots_I = prots_curr_I.loc[sorted_prots] ## RESULT
+    prots_I = prots_curr_I.loc[sorted_prots]
 
 
     assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smaller then minimal intensities."
