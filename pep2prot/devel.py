@@ -134,6 +134,75 @@ def starts_and_ends(subseq, seq):
         yield (s,e)
 
 
+def findall(p, s):
+    '''Yields all the positions of
+    the pattern p in the string s.'''
+    w = len(p)
+    i = s.find(p)
+    while i != -1:
+        yield (i,i+w)
+        i = s.find(p, i+1)
+
+def find_all(sub, a_str):
+    start = 0
+    w = len(sub)
+    while True:
+        start = a_str.find(sub, start)
+        if start == -1: return
+        yield (start,start+w)
+        start += len(sub) # use start += 1 to find overlapping matches
+
+def find_all2(sub, a_str):
+    start = 0
+    w = len(sub)
+    while True:
+        start = a_str.find(sub, start)
+        if start == -1: return
+        yield (start, start+w)
+        start += 1
+
+%%timeit
+list(findall('aaa','aaabbbaaaa'))
+
+%%timeit
+list(starts_and_ends('aaa','aaabbbaaaa'))
+
+%%timeit
+list(find_all('aaa','aaabbbaaaa'))
+
+%%timeit
+list(find_all2('aaa','aaabbbaaaa'))
+
+def find_indices(p, psp):
+    w = len(p)
+    i = 0
+    x = psp.split(p)
+    i += len(x[0])
+    yield i, i+w
+    i += w
+    for h in x[1:-1]:
+        i += len(h)
+        yield i, i+w
+        i += w
+# at least this thing can be done with numpy!
+# if we know how many occurences there were
+
+%%timeit
+g = 'aaabbbaaaa'.count('aaa')
+
+%%timeit
+list(find_indices('aaa','aaabbbaaaa'))
+
+
+
+
+# So, it seems regex are not quick enough
+
+
+
+# impossible to do it this way: but at least sorting can be avoided.
+X[['prot', 'protseq','pepseq']].drop_duplicates()
+
 W = pd.DataFrame.from_records(((prot,s,e) for prot,protseq,pepseq in zip(X.prot,
                                                                          X.protseq,
                                                                          X.pepseq)
@@ -151,12 +220,19 @@ g,d = next((g,d) for g,d in iter(W_prot) if len(d)>10)
 
 # d = pd.DataFrame({'s':[1,2,3,5,17,19,25], 'e':[10,9,8,11,19,100,27]})
 s = np.array([1,2,3,5,17,19,25])
-e = np.array([10,9,8,11,19,100,27])
+e = np.array([10,9,8,11,19,21,27])
+# 1, 11 > 10
+# 17,19 > 2
+# 19,21 > 2
+# 25,27 > 2
+# ===========
+#         16
 
 s0,e0 = s[:-1],e[:-1]
 s1,e1 = s[1:], e[1:]
-cover_len = np.where(s1 >= e0, e1-s1, np.maximum(e1-e0,0)).sum()
-cover_len += e0[0]-s0[0]
+cover_len = np.where(s1 >= e0, e1-s1, np.maximum(e1-e0,0))
+cover_len.sum() + e0[0]-s0[0]
+cover_len += 
 # Fix, as it doesn't sum to what should be there
 
 
