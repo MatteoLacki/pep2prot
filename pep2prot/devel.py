@@ -35,14 +35,30 @@ unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overa
 observed_prots  = {r for rg in D.prots for r in rg}
 fastas          = read_fastas(path/'mouse.fasta', observed_prots)
 
-Ds = D[['sequence', 'prots', 'start', 'end']].copy()
-# Ds['prots_cnt'] = Ds.prots.map(len)
+
+%%timeit
+Ds = D[['sequence', 'prots', 'start', 'end']]
 Ds = Ds.rename(columns={'sequence':'pep_seq'})
-prots = pd.DataFrame(((rg,r) for rg in set(Ds.prots) for r in rg), columns=('protgr','prot'))
+Ds = Ds.drop_duplicates()
+prots = pd.DataFrame(((rg,r) for rg in Ds.prots for r in rg), columns=('protgr','prot'))
+prots = prots.drop_duplicates().copy()
 prots['prot_seq'] = prots.prot.map(fastas.sequence)
 prots = prots.set_index('protgr')
 Ds = Ds.join(prots, on='prots')
 Ds = Ds[['pep_seq','start', 'end', 'prot_seq']].drop_duplicates()
+assert all(ps in rs for ps, rs in zip(Ds.pep_seq, Ds.prot_seq)), "Some peptides are not subsequences of proteins they are reported to explain."
+# 462 ms
+
+%%timeit
+W = pd.DataFrame(((r,pep_seq) for rg, pep_seq in zip(Ds.prots, Ds.pep_seq) for r in rg), columns=('prot','pep_seq'))
+W['prot_seq'] = W.prot.map(fastas.sequence)
+assert all(ps in rs for ps,rs in zip(W.pep_seq, W.prot_seq))
+# 156 ms
+
+
+
+
+
 Ds['prot_sub_seq'] = [seq[s-1:e] for s,e,seq in zip(Ds.start, Ds.end, Ds.prot_seq)]
 strange = Ds[Ds.pep_seq != Ds.prot_sub_seq]
 strange = Ds.loc[strange.index][['pep_seq', 'prot_sub_seq']]

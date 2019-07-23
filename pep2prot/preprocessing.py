@@ -23,10 +23,10 @@ def trivial_mods_simplification(mods_column):
 def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
     I_cols = [c for c in D.columns if "intensity in" in c]
     D[I_cols] = D[I_cols].fillna(0)
-    D.rename(columns={'pre_homology_entries':'prots'}, inplace=True)
+    D.rename(columns={'pre_homology_entries':'prots_str'}, inplace=True)
     D.modifier = mods_simplifier(D.modifier)
     D['pep'] = np.where(D.modifier, D.sequence + " " + D.modifier, D.sequence)
-    D.prots = D.prots.str.split(',').apply(frozenset)
+    D['prots'] = D.prots_str.str.split(',').apply(frozenset)
     D_pep = D.groupby('pep')
     assert np.all(D_pep.prots.nunique() == 1), "Different proteins appear to explain the same peptides in different clusters. How come? Repent."    
     D.set_index('pep', inplace=True)
