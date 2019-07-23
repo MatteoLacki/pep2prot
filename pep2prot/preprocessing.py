@@ -14,13 +14,15 @@ def simplify_mods(mods):
         return " ".join(m+"_"+pos for m, pos in mods_d.items())
     else:
         return ''
-
 simplify_mods = np.vectorize(simplify_mods)
+
 
 def trivial_mods_simplification(mods_column):
     return mods_column.str.replace(' C\\(', '_C(').str.replace('\\,','')
 
+
 def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
+    """Preprocess the isoquant report."""
     I_cols = [c for c in D.columns if "intensity in" in c]
     D[I_cols] = D[I_cols].fillna(0)
     D.rename(columns={'pre_homology_entries':'prots_str'}, inplace=True)
@@ -31,6 +33,21 @@ def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
     assert np.all(D_pep.prots.nunique() == 1), "Different proteins appear to explain the same peptides in different clusters. How come? Repent."    
     D.set_index('pep', inplace=True)
     return D, I_cols
+
+
+def are_pepseqs_in_protseqs(D, fastas):
+    """Check if all peptide sequences are subsequences of reported protein sequences.
+
+    Args:
+        D (pd.DataFrame): Data after initial preprocessing.
+        fastas (pd.DataFrame): Data with fastas.
+    """
+    pepseq2protseq  = pd.DataFrame(((r,pep_seq) 
+                                    for rg, pep_seq in zip(D.prots, D.sequence)
+                                    for r in rg),
+                                   columns=('prot','pepseq'))
+    pepseq2protseq['protseq'] = pepseq2protseq.prot.map(fastas.sequence)
+    assert all(ps in rs for ps,rs in zip(pepseq2protseq.pepseq, pepseq2protseq.protseq)), "Some peptides are not subsequences of proteins they are reported to explain."
 
 
 def complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation=1):
