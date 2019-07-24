@@ -203,28 +203,27 @@ class ProtPepGraph(BiGraph):
 
 
 
-def get_peptide_protein_graph(data, min_pepNo_per_prot=2, proteins_col='prots'):
+def get_peptide_protein_graph(pep2prots, min_pepNo_per_prot=2):
     """Get the petide-protein-groups graph.
 
     Args:
-        data (pd.DataFrame): DataFrame where each row corresponds to one peptide, indexed by peptides. 
-        min_pepNo_per_prot (int): Minimum number of peptides to qualify a protein.
-        proteins_col (str): Name of the column containing sets of proteins explaining respective peptides.
-        peptide_col (str): Name of the column containing uniquely defined peptides.
-    
+        pep2prots (pd.DataFrame): Uniquely indexed by peptides (no. duplicates).Column with sets of corresponfing proteins, 'prots', is required.
+        min_pepNo_per_prot (int): Minimum number of peptides to qualify a protein.    
     Return:
         triplette: Simplified protein-peptide graph, proteins that did not have enough peptides, and Beckham's razor proteins (go Victoria!). 
     """
-    G = ProtPepGraph((r,p) for rs, p in zip(data[proteins_col], data.index) for r in rs)
-    prots_without_enough_peps = {r for r in G.prots() if G.degree(r) < min_pepNo_per_prot}
-    G.remove_nodes_from(prots_without_enough_peps)
+    G = ProtPepGraph((r,p) for rs, p in zip(pep2prots.prots, pep2prots.index) for r in rs)
+    # removing pairs r-p, where both r and p have no other neighbors
+    prots_no_peps = {r for r in G.prots() if G.degree(r) < min_pepNo_per_prot}
+    peps_no_prots = {p for r in prots_no_peps for p in G[r] if G.degree(p) == 1} 
+    G.remove_nodes_from(prots_no_peps)
+    G.remove_nodes_from(peps_no_prots)
     H = G.form_groups()
     HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover.
-    len(HMC)
-    beckhams_razor_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
+    beckhams_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
     H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
     H = H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
-    return H, prots_without_enough_peps, beckhams_razor_prots
+    return H, prots_no_peps, peps_no_prots, beckhams_prots
 
 
 def test_node_merger():

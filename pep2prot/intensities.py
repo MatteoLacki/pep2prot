@@ -16,7 +16,6 @@ def get_prot_intensities(H, peps_I):
     peps2prots         = peps2prots_max_I.index
     prots_max_I        = peps2prots_max_I.groupby('prot').sum()
 
-
     unipeps            = pd.Index((pg for pg in H.peps() if H.degree(pg) == 1),
                                   name='pep') # peps unique for some proteins
     unipeps2prots_I    = peps2prots_max_I[peps2prots.get_level_values('pep').isin(unipeps)]
@@ -30,7 +29,6 @@ def get_prot_intensities(H, peps_I):
                                       index=bladeprots, columns=unipeps2prots_I.columns)
     #   prots = uniprots ⊔ bladeprots    
     prots_min_I = pd.concat([uniprots_min_I, bladeprots_zero_I])
-
 
     sorted_prots = np.sort(prots_min_I.index)
     prots_min_I = prots_min_I.loc[sorted_prots]
@@ -62,18 +60,16 @@ def get_prot_intensities(H, peps_I):
     otherpeps2mixprots = otherpeps2mixprots_I.index
     mixprots = otherpeps2mixprots_I.index.get_level_values('prot').unique()
     #   need weights for otherpeps2mixprots_I
-    weights =  pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
-    eps     =  np.finfo(type(weights.iloc[0,0])).eps# machine precision
+    weights = pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
+    eps     = np.finfo(type(weights.iloc[0,0])).eps# machine precision
     weights += eps # whenever we have 0,0,0, we spread intensities proportionally to eps/3eps = 1/3, rather than 0/0.
     weights_mixprot_I = weights.groupby('pep').sum()
     weights = weights.div(weights_mixprot_I, axis='index')
 
     assert not np.any(weights.isnull()), "Weight cannot result in any NaNs."
     otherpeps2mixprots_I = otherpeps2mixprots_I * weights
-    #   update only mixprots
-    prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby('prot').sum()
+    prots_curr_I.loc[mixprots] += otherpeps2mixprots_I.groupby('prot').sum()# update only mixprots
     prots_I = prots_curr_I.loc[sorted_prots]
-
 
     assert np.all(prots_min_I <= prots_I), "Some deconvoluted intensities are smaller then minimal intensities."
     assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
