@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+import argparse
+import pandas as pd
+from   pathlib import Path
+
+from pep2prot.analyse import isoquant_peptide_report
+
+
+parser = argparse.ArgumentParser(description='Turn an IsoQuant peptide report into a protein report. Like a BONZO.')
+parser.add_argument("pep_rep_path", type=str, help="Path to a peptide report.")
+parser.add_argument("fasta_path", type=str, help="Path to corresponding fasta file.")
+parser.add_argument("-o", "--output", type=str, help="Path to corresponding fasta file.", default='.')
+args = parser.parse_args()
+# print(args.__dict__)
+
+fasta_path   = Path(args.fasta_path).expanduser()
+pep_rep_path = Path(args.pep_rep_path).expanduser()
+output_path  = Path(args.output).expanduser()
+
+# print(fasta_path, pep_rep_path, output_path)
+
+prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path, fasta_path)
+prots_I_nice.to_csv(output_path/"protein_report.csv")
+all_prots_nice.to_csv(output_path/"protein_report_full.csv")
+
+print('KARAMBA! ES WAR GAR NICHT SCHLECHT!')
