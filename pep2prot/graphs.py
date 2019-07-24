@@ -162,7 +162,6 @@ class BiGraph(nx.Graph):
         return greedy_minimal_cover_2(self, A_covers_B)
 
 
-
 def random_bigraph(maxA=20, maxB=40, prob=.05):
     """Generate a random BiGraph.
 
@@ -178,7 +177,6 @@ def random_bigraph(maxA=20, maxB=40, prob=.05):
     G.remove_nodes_from([n for n in G if G.degree(n) == 0])
     G = max((G.subgraph(cc) for cc in nx.connected_components(G)), key=lambda cc: len(cc))
     return BiGraph((a,b) for a in nx.bipartite.sets(G)[0] for b in G[a])
-
 
 
 #TODO: modify the draw function to add a legend for colors.
@@ -202,7 +200,6 @@ class ProtPepGraph(BiGraph):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
 
 
-
 def get_peptide_protein_graph(pep2prots, min_pepNo_per_prot=2):
     """Get the petide-protein-groups graph.
 
@@ -220,25 +217,26 @@ def get_peptide_protein_graph(pep2prots, min_pepNo_per_prot=2):
     G.remove_nodes_from(peps_no_prots)
     H = G.form_groups()
     HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover.
-    beckhams_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
+    beckham_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
     H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
     H = H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
-    return H, prots_no_peps, peps_no_prots, beckhams_prots
+    return H, prots_no_peps, peps_no_prots, beckham_prots
 
 
-def test_node_merger():
-    """TESTING IF ALL NODES HAVE DIFFERENT NEIGHBORS."""
-    min_pepNo_per_prot = 2
-    max_rt_deviation = 1
-    path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
-    D = read_isoquant_peptide_report(path/'peptide_report.csv')
-    D, I_cols = preprocess_isoquant_peptide_report(D)
-    unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
-    DD = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
-    prot2seq = {r for rg in D2.prots for r in rg}
-    prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
-    H, RWEP, BRR = get_peptide_protein_graph(DD)
-    x = Counter(frozenset(H[r]) for r in H.prots())
-    assert set(Counter(x.values())) == {1}
-    x = Counter(frozenset(H[r]) for r in H.peps())
-    assert set(Counter(x.values())) == {1}
+# TODO: update this test.
+# def test_node_merger():
+#     """TESTING IF ALL NODES HAVE DIFFERENT NEIGHBORS."""
+#     min_pepNo_per_prot = 2
+#     max_rt_deviation = 1
+#     path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
+#     D = read_isoquant_peptide_report(path/'peptide_report.csv')
+#     D, I_cols = preprocess_isoquant_peptide_report(D)
+#     unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
+#     DD = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
+#     prot2seq = {r for rg in D2.prots for r in rg}
+#     prot2seq = read_n_check_fastas(path/'mouse.fasta', prot2seq)
+#     H, RWEP, BRR = get_peptide_protein_graph(DD)
+#     x = Counter(frozenset(H[r]) for r in H.prots())
+#     assert set(Counter(x.values())) == {1}
+#     x = Counter(frozenset(H[r]) for r in H.peps())
+#     assert set(Counter(x.values())) == {1}

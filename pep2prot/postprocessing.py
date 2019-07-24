@@ -57,21 +57,25 @@ def get_info_on_prots(prot_groups, fastas):
     trivial_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups
                                      if len(rg)==1 for r in rg)
     trivial_prot_reps.columns = ('prot', 'representative protein')
-    trivial_prot_reps['protein_group'] = trivial_prot_reps['representative protein']
-    trivial_prot_reps = trivial_prot_reps.join(fastas,
-                                               on='representative protein')
-    trivial_prot_reps['monoisotopic mass'] = trivial_prot_reps.sequence.map(aa2mass)
+    trivial_prot_reps['protein_group'] = ''
+    trivial_prot_reps = trivial_prot_reps.join(fastas,on='representative protein')
+    trivial_prot_reps['monoisotopic mass'] = trivial_prot_reps.prot_seq.map(aa2mass)
 
     intriguing_prot_reps = pd.DataFrame((rg,r) for rg in prot_groups
                                         if len(rg) > 1 for r in rg)
     intriguing_prot_reps.columns = ('prot', 'representative protein')
     intriguing_prot_reps = intriguing_prot_reps.join(fastas,
                                                      on='representative protein')
-    intriguing_prot_reps['monoisotopic mass'] = intriguing_prot_reps.sequence.map(aa2mass)
+    intriguing_prot_reps['monoisotopic mass'] = intriguing_prot_reps.prot_seq.map(aa2mass)
     intriguing_prot_reps.sort_values(['prot','seq_len','monoisotopic mass','representative protein'],
                                      inplace=True)
     intriguing_prot_reps = intriguing_prot_reps.groupby('prot').head(1)
-    intriguing_prot_reps['protein_group'] = intriguing_prot_reps.prot.map(lambda x: " ".join(x))
+    prot_groups = []
+    for r,rg in zip(intriguing_prot_reps['representative protein'], intriguing_prot_reps.prot):    
+        set(rg).remove(r)
+        prot_groups.append(" ".join(rg))
+
+    intriguing_prot_reps['protein_group'] = prot_groups
     res = pd.concat([trivial_prot_reps,
                      intriguing_prot_reps[trivial_prot_reps.columns]])
     res.set_index('prot', inplace=True)
