@@ -98,8 +98,6 @@ prot, prot_len, ranges = next(iter_ranges(X_bad))
 x = {prot: range_list_len(ranges)/prot_len 
      for prot, prot_len, ranges in iter_ranges(X_bad)}
 # numpyfying it all
-X_bad
-
 
 X = pd.DataFrame(((p,ps,s,e,r) 
                    for p,s,e,rg,ps in zip(D.index,
@@ -111,97 +109,21 @@ X = pd.DataFrame(((p,ps,s,e,r)
 X['protseq'] = X.prot.map(fastas.prot_seq)
 X = X.drop_duplicates()
 
+pepseqINprotseqCNT = [psp.count(p) for p, psp in zip(X.pepseq, X.protseq)]
+Counter(pepseqINprotseqCNT)
 
-def starts_and_ends(subseq, seq):
-    """Get the covered areas.
-
-    fitting aaa to ABAaaaaB will result in [(3,6), (4,7)].
-    """
-    for m in re.finditer("(?=" + subseq + ")", seq):
-        s = m.start()
-        e = s + len(subseq)
-        yield (s,e)
-
-# ladies and ennemies: our clogging piece of shit!
-def starts_and_ends(subseq, seq):
-    """Get the covered areas.
-
-    fitting aaa to ABAaaaaB will result in [(3,6), (4,7)].
-    """
-    for m in re.finditer(subseq, seq):
-        s = m.start()
-        e = s + len(subseq)
-        yield (s,e)
+i = next(i for i,j in enumerate(pepseqINprotseqCNT) if j == 10)
+p, psp = X.iloc[i][['pepseq','protseq']]
 
 
-def findall(p, s):
-    '''Yields all the positions of
-    the pattern p in the string s.'''
-    w = len(p)
-    i = s.find(p)
-    while i != -1:
-        yield (i,i+w)
-        i = s.find(p, i+1)
+from pep2prot.string_ops import find_indices3
 
-def find_all(sub, a_str):
-    start = 0
-    w = len(sub)
-    while True:
-        start = a_str.find(sub, start)
-        if start == -1: return
-        yield (start,start+w)
-        start += len(sub) # use start += 1 to find overlapping matches
+%%time
+W = pd.DataFrame.from_records((prot,find_indices3(pepseq,protseq)) 
+                              for prot,protseq,pepseq in zip(X.prot,
+                                                             X.protseq,
+                                                             X.pepseq))
 
-def find_all2(sub, a_str):
-    start = 0
-    w = len(sub)
-    while True:
-        start = a_str.find(sub, start)
-        if start == -1: return
-        yield (start, start+w)
-        start += 1
-
-%%timeit
-list(findall('aaa','aaabbbaaaa'))
-
-%%timeit
-list(starts_and_ends('aaa','aaabbbaaaa'))
-
-%%timeit
-list(find_all('aaa','aaabbbaaaa'))
-
-%%timeit
-list(find_all2('aaa','aaabbbaaaa'))
-
-def find_indices(p, psp):
-    w = len(p)
-    i = 0
-    x = psp.split(p)
-    i += len(x[0])
-    yield i, i+w
-    i += w
-    for h in x[1:-1]:
-        i += len(h)
-        yield i, i+w
-        i += w
-# at least this thing can be done with numpy!
-# if we know how many occurences there were
-
-%%timeit
-g = 'aaabbbaaaa'.count('aaa')
-
-%%timeit
-list(find_indices('aaa','aaabbbaaaa'))
-
-
-
-
-# So, it seems regex are not quick enough
-
-
-
-# impossible to do it this way: but at least sorting can be avoided.
-X[['prot', 'protseq','pepseq']].drop_duplicates()
 
 W = pd.DataFrame.from_records(((prot,s,e) for prot,protseq,pepseq in zip(X.prot,
                                                                          X.protseq,
