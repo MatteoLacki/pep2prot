@@ -1,23 +1,21 @@
 %load_ext autoreload
 %autoreload 2
 
-from pathlib import Path
+from collections import Counter
 import matplotlib.pyplot as plt
-from collections import Counter, defaultdict
 import networkx as nx
 import numpy as np
 import pandas as pd
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 30)#display whole column without truncation
-import re
+from pathlib import Path
 
 from pep2prot.read import read_isoquant_peptide_report, read_fastas
 from pep2prot.graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
-from pep2prot.preprocessing import preprocess_isoquant_peptide_report, complex_cluster_buster, simple_cluster_buster, get_sequences
+from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
 from pep2prot.intensities import get_prot_intensities
 from pep2prot.postprocessing import get_info_on_prots, get_stats
-from pep2prot.range_ops import range_list_len
 
 
 min_pepNo_per_prot = 2
@@ -27,141 +25,11 @@ path = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 D = read_isoquant_peptide_report(path/'peptide_report.csv')
 D, I_cols = preprocess_isoquant_peptide_report(D)
 unique_columns = ['peptide_overall_max_score','peptide_fdr_level','peptide_overall_replication_rate','prots','pre_homology_accessions','pi','mw']
-# check that those do not change
-# do I really need all of that???
-observed_prots = {r for rg in D.prots for r in rg}
-fastas = read_fastas(path/'mouse.fasta', observed_prots)
 
-
-X = pd.DataFrame(((p,ps,s,e,r) 
-                   for p,s,e,rg,ps in zip(D.index,
-                                          D.start,
-                                          D.end,
-                                          D.prots,
-                                          D.sequence) for r in rg),
-                 columns=('pep','pepseq','start','end','prot'))
-X['protseq'] = X.prot.map(fastas.prot_seq)
-X = X.set_index(['pep','prot'])
-assert all(ps in rs for ps,rs in zip(X.pepseq, X.protseq)), "Some peptides are not subsequences of proteins they are reported to explain."
-
-
-X['protsubseq'] = [rs[(s-1):e] for s,e,rs in zip(X.start,X.end,X.protseq)]
-X_ok  = X[X.protsubseq == X.pepseq].copy() # start-end point to the pepstring
-X_bad = X[X.protsubseq != X.pepseq].copy() # on these, I HAVE to recalculate start-end
-# on other, I MIGHT do it. And I should do it for comparison.
-
-def starts_and_ends(subseq, seq):
-    """Get the covered areas.
-
-    fitting aaa to ABAaaaaB will result in [(3,6), (4,7)].
-    """
-    for m in re.finditer("(?=" + subseq + ")", seq):
-        s = m.start()
-        e = s + len(subseq)
-        yield (s,e)
-
-# long
-correct_se = [frozenset(starts_and_ends(ps,rs)) for ps,rs in zip(X_ok.pepseq, X_ok.protseq)]
-# short
-rectified_se = [frozenset(starts_and_ends(*x)) for x in zip(X_bad.pepseq, X_bad.protseq)]
-
-
-d = X_bad.groupby('prot').get_group(protseq)
-
-for pepseq in d.pepseq:
-    protseq = d.protseq[0]
-    for se in starts_and_ends(pepseq, protseq):
-        print(se)
-
-s = []
-for protseq,d in X_bad.groupby('prot'):
-    s.append(sum_interval_lengths(se for pepseq in d.pepseq
-                                for se in starts_and_ends(pepseq, d.protseq[0])))
-starts_and_ends(*x) for x in zip(X_bad.pepseq, X_bad.protseq)
-
-Counter(len(x) for x in correct_se)
-Counter(len(x) for x in rectified_se)
-
-X_ok['subseq_cnt'] = [len(x) for x in correct_se]
-X_ok['found_se'] = correct_se
-X_ok_ommited = X_ok.query('subseq_cnt != 1')
-x = X_ok_ommited.iloc[0]
-
-# need an example of prot: [(s,e),...,(s,e)]
-
-def iter_ranges(X):
-    for prot, d in X.groupby('prot'):
-        protseq = d.protseq[0]
-        yield prot, len(protseq), [se for pepseq in d.pepseq for se in starts_and_ends(pepseq, protseq) ]
-# too many things: run drop_duplicates() somewhere
-prot, prot_len, ranges = next(iter_ranges(X_bad))
-x = {prot: range_list_len(ranges)/prot_len 
-     for prot, prot_len, ranges in iter_ranges(X_bad)}
-# numpyfying it all
-
-X = pd.DataFrame(((p,ps,s,e,r) 
-                   for p,s,e,rg,ps in zip(D.index,
-                                          D.start,
-                                          D.end,
-                                          D.prots,
-                                          D.sequence) for r in rg),
-                 columns=('pep','pepseq','start','end','prot'))
-X['protseq'] = X.prot.map(fastas.prot_seq)
-X = X.drop_duplicates()
-
-pepseqINprotseqCNT = [psp.count(p) for p, psp in zip(X.pepseq, X.protseq)]
-Counter(pepseqINprotseqCNT)
-
-i = next(i for i,j in enumerate(pepseqINprotseqCNT) if j == 10)
-p, psp = X.iloc[i][['pepseq','protseq']]
-
-
-from pep2prot.string_ops import find_indices3
-
-%%time
-W = pd.DataFrame.from_records((prot,find_indices3(pepseq,protseq)) 
-                              for prot,protseq,pepseq in zip(X.prot,
-                                                             X.protseq,
-                                                             X.pepseq))
-
-
-W = pd.DataFrame.from_records(((prot,s,e) for prot,protseq,pepseq in zip(X.prot,
-                                                                         X.protseq,
-                                                                         X.pepseq)
-                                          for s,e in starts_and_ends(pepseq, protseq)),
-                              columns=('prot','s','e'),
-                              index='prot')
-W = W.drop_duplicates()
-W = W.sort_values(['prot', 's'])
-prot_se0 = W.groupby('prot').head(1)
-
-W.s - prot_se0.s
-W.e - prot_se0.s
-
-g,d = next((g,d) for g,d in iter(W_prot) if len(d)>10)
-
-# d = pd.DataFrame({'s':[1,2,3,5,17,19,25], 'e':[10,9,8,11,19,100,27]})
-s = np.array([1,2,3,5,17,19,25])
-e = np.array([10,9,8,11,19,21,27])
-# 1, 11 > 10
-# 17,19 > 2
-# 19,21 > 2
-# 25,27 > 2
-# ===========
-#         16
-
-s0,e0 = s[:-1],e[:-1]
-s1,e1 = s[1:], e[1:]
-cover_len = np.where(s1 >= e0, e1-s1, np.maximum(e1-e0,0))
-cover_len.sum() + e0[0]-s0[0]
-cover_len += 
-# Fix, as it doesn't sum to what should be there
-
-
-
-
-
-
+fastas = read_fastas(path/'mouse.fasta', {r for rg in D.prots for r in rg})
+prots  = get_protein_coverages(D, fastas)
+# plt.hist(prots.pep_coverage, bins=100)
+# plt.show()
 
 DD = complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation)
 # DD = simple_cluster_buster(D, I_cols, unique_columns)
@@ -184,9 +52,13 @@ peps_I
 
 prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
 # prots_stats = get_stats(prots_min_I, prots_I, prots_max_I)
+prots_HF = prots.loc[(r for rg in prots_I.index for r in rg)]
+# plt.hist(prots_HF.pep_coverage, bins=100)
+# plt.show()
 
-prots     = prots_I.index
-prot_info = get_info_on_prots(prots, fastas)# find a better name for that function for God's sake...
+
+
+prot_info = get_info_on_prots(prots_I.index, fastas)# find a better name for that function for God's sake...
 
 prot2pep            = pd.DataFrame.from_records(H.prot_pep_pairs(), columns=('prot','pep'))
 prot2pep['pep_cnt'] = prot2pep.pep.map(len)

@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+from functools import partial
+
+from pep2prot.string_ops import find_indices3
+from pep2prot.range_ops import reverse_sorted_range_list_len
 
 
 def simplify_mods(mods):
@@ -35,23 +39,33 @@ def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
     return D, I_cols
 
 
-def get_sequences(D, fastas):
-    """Check if all peptide sequences are subsequences of reported protein sequences.
+def get_protein_coverages(D, fastas, return_pepseq2protseq=False):
+    """Get protein coverages.
 
     Args:
-        D (pd.DataFrame): Data after initial preprocessing.
-        fastas (pd.DataFrame): Data with fastas.
+        D (pd.DataFrame): Observed peptides. Indexed by peptides. Has to contain 'sequence' and 'prots' columns, with peptide sequences and sets of proteins that can explain peptides.
+        fastas (pd.DataFrame): A DataFrame indexed by proteins with column prot_seq. Best, as output of read_fastas.
+        return_pepseq2protseq (boolean): Return additionally the DataFrame with protein sequences and corresponding peptide subsequences. 
+    Return:
+        pd.DataFrame with proteins and their coverages and (optionally) DataFrame with protein sequences and corresponding peptide subsequences.
     """
-    pepseq2protseq  = pd.DataFrame(((p,s,e,r,pep_seq) 
-                                    for p,s,e,rg,pep_seq in zip(D.index,
-                                                                D.start,
-                                                                D.end,
-                                                                D.prots,
-                                                                D.sequence)
-                                    for r in rg),
-                                   columns=('pep','start','end','prot','pepseq'))
-    pepseq2protseq['protseq'] = pepseq2protseq.prot.map(fastas.prot_seq)
-    return pepseq2protseq.set_index(['pep','prot'])
+    X = pd.DataFrame(((p,ps,r) for p,ps,rg in zip(D.index,D.sequence,D.prots) for r in rg), columns=('pep','pepseq','prot'))
+    X['protseq']= X.prot.map(fastas.prot_seq)
+    X['sub_idx']= [find_indices3(p,psp) for p,psp in zip(X.pepseq, X.protseq)]
+    X.sub_idx   = X.sub_idx.map(frozenset)
+    sub_indices = X[['prot','sub_idx']].set_index('prot')
+    sub_indices = sub_indices.groupby('prot').sub_idx.apply(lambda x: set([]).union(*x))
+    sub_indices = sub_indices.map(partial(sorted, reverse=True))
+    prots = pd.DataFrame({'prot':X.prot.unique()}).set_index('prot').join(fastas)
+    prots['pep_cover_len'] = sub_indices.map(reverse_sorted_range_list_len)
+
+    assert np.all(prots.seq_len >= prots.pep_cover_len), "Peptide coverage exceeded protein length. If you ask me, if that is not an error, then what is?"
+
+    prots['pep_coverage'] = prots.pep_cover_len/prots.seq_len
+    if return_pepseq2protseq:
+        return prots, X
+    else:
+        return prots
 
 
 def complex_cluster_buster(D, I_cols, unique_columns, max_rt_deviation=1):

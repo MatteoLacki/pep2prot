@@ -240,3 +240,70 @@
 # print(len(H))
 # print(len(list(H.A())))
 # print(len(list(H.B())))
+
+
+
+# X = X.set_index(['pep','prot'])
+# pepseqINprotseqCNT = [psp.count(p) for p, psp in zip(X.pepseq, X.protseq)]
+# assert all(ps in rs for ps,rs in zip(X.pepseq, X.protseq)), "Some peptides are not subsequences of proteins they are reported to explain."
+
+
+# X['protsubseq'] = [rs[(s-1):e] for s,e,rs in zip(X.start,X.end,X.protseq)]
+# X_ok  = X[X.protsubseq == X.pepseq].copy() # start-end point to the pepstring
+# X_bad = X[X.protsubseq != X.pepseq].copy() # on these, I HAVE to recalculate start-end
+# # on other, I MIGHT do it. And I should do it for comparison.
+# # long
+# correct_se = [frozenset(starts_and_ends(ps,rs)) for ps,rs in zip(X_ok.pepseq, X_ok.protseq)]
+# # short
+# rectified_se = [frozenset(starts_and_ends(*x)) for x in zip(X_bad.pepseq, X_bad.protseq)]
+# d = X_bad.groupby('prot').get_group(protseq)
+
+# for pepseq in d.pepseq:
+#     protseq = d.protseq[0]
+#     for se in starts_and_ends(pepseq, protseq):
+#         print(se)
+
+# s = []
+# for protseq,d in X_bad.groupby('prot'):
+#     s.append(sum_interval_lengths(se for pepseq in d.pepseq
+#                                 for se in starts_and_ends(pepseq, d.protseq[0])))
+# starts_and_ends(*x) for x in zip(X_bad.pepseq, X_bad.protseq)
+
+# Counter(len(x) for x in correct_se)
+# Counter(len(x) for x in rectified_se)
+
+# X_ok['subseq_cnt'] = [len(x) for x in correct_se]
+# X_ok['found_se'] = correct_se
+# X_ok_ommited = X_ok.query('subseq_cnt != 1')
+# x = X_ok_ommited.iloc[0]
+
+# # need an example of prot: [(s,e),...,(s,e)]
+
+# def iter_ranges(X):
+#     for prot, d in X.groupby('prot'):
+#         protseq = d.protseq[0]
+#         yield prot, len(protseq), [se for pepseq in d.pepseq for se in starts_and_ends(pepseq, protseq) ]
+# # too many things: run drop_duplicates() somewhere
+# prot, prot_len, ranges = next(iter_ranges(X_bad))
+# x = {prot: range_list_len(ranges)/prot_len 
+#      for prot, prot_len, ranges in iter_ranges(X_bad)}
+# # numpyfying it all
+
+
+
+
+
+# W = pd.DataFrame.from_records(((prot,s,e) for prot,protseq,pepseq in zip(X.prot,
+#                                                                          X.protseq,
+#                                                                          X.pepseq)
+#                                           for s,e in starts_and_ends(pepseq, protseq)),
+#                               columns=('prot','s','e'),
+#                               index='prot')
+# W = W.drop_duplicates()
+# W = W.sort_values(['prot', 's'])
+# prot_se0 = W.groupby('prot').head(1)
+
+# W.s - prot_se0.s
+# W.e - prot_se0.s
+
+# g,d = next((g,d) for g,d in iter(W_prot) if len(d)>10)
