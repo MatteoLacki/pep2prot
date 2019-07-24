@@ -75,3 +75,4 @@ def get_prot_intensities(H, peps_I):
     assert np.all(prots_I <= prots_max_I), "Some deconvoluted intensities are larger then maximal intensities."
 
     return prots_min_I, prots_I, prots_max_I
+
