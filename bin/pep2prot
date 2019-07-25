@@ -15,11 +15,14 @@ args = parser.parse_args()
 
 fasta_path   = Path(args.fasta_path).expanduser()
 pep_rep_path = Path(args.pep_rep_path).expanduser()
+if 'fas' not in fasta_path.suffix:
+    fasta_path, pep_rep_path = pep_rep_path, fasta_path
+
 output_path  = Path(args.output).expanduser()
 
 # print(fasta_path, pep_rep_path, output_path)
 
-prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path, fasta_path)
+prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path, fasta_path, verbose=True)
 prots_I_nice.to_csv(output_path/"protein_report.csv")
 all_prots_nice.to_csv(output_path/"protein_report_full.csv")
 
