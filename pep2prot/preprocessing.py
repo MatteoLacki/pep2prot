@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 from functools import partial
 
-from pep2prot.string_ops import find_indices3
-from pep2prot.range_ops import reverse_sorted_range_list_len
+from .string_ops import find_indices3
+from .range_ops import reverse_sorted_range_list_len
 
 
 def simplify_mods(mods):

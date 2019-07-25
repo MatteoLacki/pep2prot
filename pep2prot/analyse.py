@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from pep2prot.read import read_isoquant_peptide_report, read_fastas
-from pep2prot.graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
-from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
-from pep2prot.intensities import get_prot_intensities
-from pep2prot.postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
+from .read import read_isoquant_peptide_report, read_fastas
+from .graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
+from .preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
+from .intensities import get_prot_intensities
+from .postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
 
 
 def isoquant_peptide_report(pep_rep_path, 
