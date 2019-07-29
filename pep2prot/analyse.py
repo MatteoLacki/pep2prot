@@ -25,7 +25,7 @@ def isoquant_peptide_report(pep_rep_path,
 
     if verbose:
         print('Reading isoquant report.')
-    D         = read_isoquant_peptide_report(pep_rep_path)
+    D = read_isoquant_peptide_report(pep_rep_path)
 
     if verbose:
         print('Preprocessing isoquant report.')
@@ -33,7 +33,9 @@ def isoquant_peptide_report(pep_rep_path,
 
     if verbose:
         print('Reading fastas.')
-    fastas    = read_fastas(fastas_path, {r for rg in D.prots for r in rg})
+    fastas = read_fastas(fastas_path)
+    observed_prots = {r for rg in D.prots for r in rg}
+    assert all(r in fastas.index for r in observed_prots), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
 
     if verbose:
         print('Calculating coverages.')

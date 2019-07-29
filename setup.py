@@ -34,6 +34,7 @@ setup(
     #          ['data/contaminants_uniprot_format.fasta']
     # },
     scripts = [
-        "bin/pep2prot"
+        "bin/pep2prot",
+        "bin/_pep2prot.bat"
     ]
 )

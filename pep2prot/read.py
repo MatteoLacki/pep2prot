@@ -34,12 +34,11 @@ def read_n_check_fastas(path, observed_prots):
 
 #TODO: modify furious_fastas to result in a quicker read in.
 #TODO: use it aboves
-def read_fastas(path, observed_prots):
+def read_fastas(path):
     """Read in fastas files.
 
     Args:
         path (Path or str): Path to the fasta file used to sequence MS signals.
-        observed_prots (set): Found proteins.
     Returns:
         dict: Mapping from proteins to their sequences.
     """
@@ -54,5 +53,4 @@ def read_fastas(path, observed_prots):
     fastas_df = fastas_df.set_index('prot')
     fastas_df['seq_len'] = fastas_df.prot_seq.map(len)
     assert all(fastas_df.groupby('prot').size() == 1), "The provided accesions are not unique and cannot form an index."
-    assert all(r in fastas_df.index for r in observed_prots), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
     return fastas_df

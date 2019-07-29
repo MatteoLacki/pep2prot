@@ -137,6 +137,7 @@ class BiGraph(nx.Graph):
             merging_merged (boolean): in case of second round of merging, don't create sets of sets, but just bigger sets of merged nodes. If the merged nodes were {a,b}, {c,d}, then don't create {{a,b}, {c,d}}, but rather {a,b,c,d}.
         """
         assert AorB in ('A', 'B'), "A or B. Literaly."
+        # merge nodes that share the same neighbors
         neighbors_of_nodes_to_merge = defaultdict(set)
         for n in (self.A() if AorB == 'A' else self.B()):
             neighbors_of_nodes_to_merge[frozenset(self[n])].add(n)
@@ -198,6 +199,11 @@ class ProtPepGraph(BiGraph):
 
     def __repr__(self):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
+
+    def greedy_minimal_cover(self):
+        # A = proteins, B = peptides.
+        return greedy_minimal_cover_2(self, A_covers_B=True)
+
 
 
 def get_peptide_protein_graph(pep2prots, min_pepNo_per_prot=2):
