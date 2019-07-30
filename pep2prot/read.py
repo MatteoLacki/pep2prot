@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-from furious_fastas.fastas import UniprotFastas
+from furious_fastas.fastas import Fastas
 
 
 def read_isoquant_peptide_report(path):
@@ -32,8 +32,6 @@ def read_n_check_fastas(path, observed_prots):
     return {r:f for r,f in prot2seq.items() if r in observed_prots}
 
 
-#TODO: modify furious_fastas to result in a quicker read in.
-#TODO: use it aboves
 def read_fastas(path):
     """Read in fastas files.
 
@@ -42,13 +40,9 @@ def read_fastas(path):
     Returns:
         dict: Mapping from proteins to their sequences.
     """
-    fastas = UniprotFastas()
+    fastas = Fastas()
     fastas.read(path)
-    fastas_df = pd.DataFrame.from_records(
-        (' '.join(f.header.split(' ')[2:]),
-         str(f),
-         f.header.split(' ')[1]) 
-        for f in fastas)
+    fastas_df = pd.DataFrame.from_records((f.description, f.sequence, f.entry) for f in fastas)
     fastas_df.columns = ['description', 'prot_seq', 'prot']
     fastas_df = fastas_df.set_index('prot')
     fastas_df['seq_len'] = fastas_df.prot_seq.map(len)
