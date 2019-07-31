@@ -10,6 +10,12 @@ parser = argparse.ArgumentParser(description='Turn an IsoQuant peptide report in
 parser.add_argument("pep_rep_path", type=str, help="Path to a peptide report.")
 parser.add_argument("fasta_path", type=str, help="Path to corresponding fasta file.")
 parser.add_argument("-o", "--output", type=str, help="Path to corresponding fasta file.", default='.')
+parser.add_argument( "--csv",
+                action='store_const',
+                const=True,
+                default=False,
+                help="Return two csvs instead of one excel report.")
+
 args = parser.parse_args()
 # print(args.__dict__)
 
@@ -27,7 +33,13 @@ else:
 print(fasta_path, pep_rep_path, output_path)
 
 prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path, fasta_path, verbose=True)
-prots_I_nice.to_csv(output_path/"protein_report.csv")
-all_prots_nice.to_csv(output_path/"protein_report_full.csv")
 
-print('KARAMBA! ES WAR GAR NICHT SCHLECHT!')
+if args.csv:
+    prots_I_nice.to_csv(output_path/"protein_report.csv")
+    all_prots_nice.to_csv(output_path/"protein_report_full.csv")
+else:
+    with pd.ExcelWriter(output_path/"protein_report.xlsx") as writer:
+        prots_I_nice.to_excel(writer, sheet_name='report')
+        all_prots_nice.to_excel(writer, sheet_name='extended report')
+
+print('KARAMBA! ES HAT FUNKTIONIERT!')

@@ -25,6 +25,7 @@ setup(
         'numpy',
         'networkx',
         'pandas',
+        'openpyxl', # for support of excel files output
         'furious_fastas',
         'aa2atom'
     ],

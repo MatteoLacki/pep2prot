@@ -8,7 +8,7 @@ from .min_set_cover import greedy_minimal_cover_2
 
 set_union = lambda S: frozenset(r for s in S for r in s)
 
-#TODO: it would be good to allow names in A and B to be the same???
+
 class BiGraph(nx.Graph):
     """A bipartite graph."""
     def __init__(self, edges=None, *args, **kwds):

@@ -49,8 +49,8 @@ def get_prot_intensities(H, peps_I):
     #   bladeprots might receive some more intensity from other peptides, hence _curr_I.
     #   peps = unipeps ⊔ bladepeps ⊔ otherpeps
     #   unipeps neighbor uniprots, bladepeps neighbor bladeprots, otherpeps neighbor some prots from both sets
-    otherpeps    = pd.Index({p for p in H.peps() if p not in unipeps and p not in bladepeps}, name='pep')
-    otherpeps_I  = peps_I.loc[otherpeps]
+    otherpeps = pd.Index({p for p in H.peps() if p not in unipeps and p not in bladepeps}, name='pep')
+    otherpeps_I = peps_I.loc[otherpeps]
     #   above intensities will be distributed proportionally to intensities prots received from bladepeps and unipeps.
     #   call these the current intensities, curr_I.
     #   bladeprots and uniprots are disjoint sets, so we concat them
@@ -61,7 +61,7 @@ def get_prot_intensities(H, peps_I):
     mixprots = otherpeps2mixprots_I.index.get_level_values('prot').unique()
     #   need weights for otherpeps2mixprots_I
     weights = pd.DataFrame(index=otherpeps2mixprots).join(prots_curr_I, on='prot')
-    eps     = np.finfo(type(weights.iloc[0,0])).eps# machine precision
+    eps = np.finfo(type(weights.iloc[0,0])).eps# machine precision
     weights += eps # whenever we have 0,0,0, we spread intensities proportionally to eps/3eps = 1/3, rather than 0/0.
     weights_mixprot_I = weights.groupby('pep').sum()
     weights = weights.div(weights_mixprot_I, axis='index')
