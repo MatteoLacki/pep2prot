@@ -205,7 +205,8 @@ class ProtPepGraph(BiGraph):
         return greedy_minimal_cover_2(self, A_covers_B=True)
 
 
-
+#TODO: make this a graph method!!!
+#TODO: make another method that creates the graph.
 def get_peptide_protein_graph(pep2prots, min_pepNo_per_prot=2):
     """Get the petide-protein-groups graph.
 

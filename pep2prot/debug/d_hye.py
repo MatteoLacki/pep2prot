@@ -59,6 +59,29 @@ def gua(rg):
                 yield p2
 
 
+from pep2prot.graphs import ProtPepGraph
+
+test = ProtPepGraph([('A',0), ('A',1), ('B',1), ('B',2), ('B',4), ('C',2), ('C',3), ('C',4), ('C',5), ('D',4), ('D',5), ('D',6)])
+
+def create_G(pep2prots, min_pepNo_per_prot=2):
+    G = ProtPepGraph((r,p) for rs, p in zip(pep2prots.prots, pep2prots.index) for r in rs)
+    # removing pairs r-p, where both r and p have no other neighbors
+    prots_no_peps = {r for r in G.prots() if G.degree(r) < min_pepNo_per_prot}
+    peps_no_prots = {p for r in prots_no_peps for p in G[r] if G.degree(p) == 1} 
+    G.remove_nodes_from(prots_no_peps)
+    G.remove_nodes_from(peps_no_prots)
+    return G
+
+def minimize_graph(G):
+    H = G.form_groups()
+    HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover.
+    beckham_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
+    H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
+    H = H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups 
+    return H, HMC, beckham_prots
+
+H_test, HMC_test, beckham_prots_test = minimize_graph(test)
+H_test.draw(with_labels=True)
 
 H.subgraph(nx.node_connected_component(H, rg)).draw(with_labels=True)
 H.subgraph(set(gua(rg))).draw(with_labels=True)

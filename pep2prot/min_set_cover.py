@@ -57,7 +57,7 @@ def test_greedy_minimal_cover():
     assert greedy_minimal_cover(G) == {'a', 'c'}
 
 
-
+#TODO: something is wrong here.
 def greedy_minimal_cover_2(G, A_covers_B=True):
     """Get the greedy approximation to the minimal set cover.
     
