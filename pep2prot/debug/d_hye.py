@@ -11,7 +11,7 @@ from collections import Counter
 import networkx as nx
 
 from pep2prot.read import read_isoquant_peptide_report, read_fastas
-from pep2prot.graphs import ProtPepGraph, get_full_prot_pep_graph, BiGraph
+from pep2prot.graphs import ProtPepGraph, BiGraph
 from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
 from pep2prot.intensities import get_prot_intensities
 from pep2prot.postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
@@ -35,9 +35,31 @@ uni_cols = ['peptide_overall_max_score','peptide_fdr_level',
 DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
 assert np.all(DD.groupby(['pep','prots']).size() == 1), "Some peptides are still across different clusters."
 
+rg = frozenset({'K1H1_HUMAN','K1H1_HUMAN_CONTA', 'K1HB_HUMAN_CONTA', 'KT33B_HUMAN'})
+r = next(iter(rg))
+
 G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
 lonely, unsupported = G.remove_lonely_and_unsupported(2)
 H, beckham_prot_groups = G.get_minimal_graph()
+
+# min_self = G.form_groups()
+# min_prot_cover = min_self.minimal_protein_cover()
+# rg in min_prot_cover
+# rg in min_self
+# min_self_bug = min_self.subgraph(nx.node_connected_component(min_self, rg))
+# min_self_bug.draw(with_labels=True, font_size=5)
+
+
+
+
+# min_self_some_removed = H.subgraph(nx.node_connected_component(H, rg))
+# min_self_some_removed.draw(with_labels=True, font_size=5)
+# H, beckham_prot_groups = H.get_minimal_graph()
+# H.pep_cnt()
+
+
+
+
 
 pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
@@ -52,13 +74,22 @@ buggy_weights = weights[weights.isnull().any(axis=1)]
 buggy_pep_groups = set(buggy_weights.index.get_level_values('pep'))
 buggy_peps = {p for pg in buggy_pep_groups for p in pg}
 D.loc[buggy_peps]
-buggy_prot_groups = {rg for pg in buggy_pep_groups for rg in H[pg]}
+buggy_prot_groups = set(buggy_weights.index.get_level_values('prot'))
 # H.subgraph(buggy_pep_groups|buggy_prot_groups).draw(with_labels=True) # looks normal
+rg = next(iter(buggy_prot_groups))
 
-rg = next(iter(set(buggy_weights.index.get_level_values('prot'))))
-H.subgraph(nx.node_connected_component(H, rg)).draw(with_labels=True, font_size=6)
+rg in beckham_prot_groups
 
 
+H[rg]
+Hbug = H.subgraph(nx.node_connected_component(H, rg))
+Hbug.draw(with_labels=True, font_size=6)
+
+HbugMC = Hbug.minimal_protein_cover()
+HMC = H.minimal_protein_cover()
+
+rg in HbugMC
+rg in HMC
 
 
 weights.xs(pep=pg, prot=rg)

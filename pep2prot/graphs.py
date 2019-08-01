@@ -4,7 +4,7 @@ import networkx as nx
 from collections import defaultdict
 from networkx.algorithms import bipartite
 
-from .min_set_cover import greedy_minimal_cover_2
+from .min_set_cover import inner_greedy_minimal_cover
 
 set_union = lambda S: frozenset(r for s in S for r in s)
 
@@ -158,9 +158,6 @@ class BiGraph(nx.Graph):
         except nx.NetworkXNoCycle:
             return False
 
-    def minimal_cover(self, A_covers_B=True):
-        return greedy_minimal_cover_2(self, A_covers_B)
-
     @classmethod
     def random(cls, maxA=20, maxB=40, prob=.05):
         """Generate a random BiGraph.
@@ -184,28 +181,25 @@ class ProtPepGraph(BiGraph):
     def prots(self):
         """Iterate proteins."""
         yield from self.A()
+    proteins = prots
+    
+    def prot_cnt(self):
+        return self.A_cnt()
 
     def peps(self):
         """Iterate peptides."""
         yield from self.B()
+    peptides = peps
+
+    def pep_cnt(self):
+        return self.B_cnt()
 
     def prot_pep_pairs(self):
         """Iterate potential peptide-protein explanations."""
         yield from self.AB()
 
-    def proteins(self):
-        """Iterate proteins."""
-        yield from self.prots()
-
-    def peptides(self):
-        """Iterate peptides."""
-        yield from self.prots()
-
     def __repr__(self):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
-
-    def minimal_protein_cover(self):
-        return self.minimal_cover(A_covers_B=True) # A = proteins, B = peptides, as seen above...
 
     def remove_lonely_and_unsupported(self, min_pepNo_per_prot=2):
         """Get the full protein-peptide graph.
@@ -230,7 +224,7 @@ class ProtPepGraph(BiGraph):
         self.remove_nodes_from(peps_no_prots)
         return (lonely_peps, lonely_prots), (peps_no_prots, prots_no_peps)
 
-    def get_minimal_graph(self):
+    def get_minimal_graph(self, max_iter=float('inf')):
         """Get the induced minimal graph.
 
         The minimal graph is a version of the PepProtGraph that merges nodes that share the same neighbors and reduces that further by finding the minimal number of protein groups needed to explain the observed peptide groups.
@@ -238,16 +232,27 @@ class ProtPepGraph(BiGraph):
         Returns:
             tuple containing the induced minimal PepProtGraph and the set of protein groups not necessary to explain peptide groups.
         """
-        min_self = self.form_groups()
-        min_prot_cover = min_self.minimal_protein_cover()
-        beckham_prot_groups = {rg for rg in min_self.prots() if rg not in min_prot_cover}
-        # removing beckham prots will not leave any peptides without neighbors, as they are covered by min_prot_cover.
-        min_self.remove_nodes_from(beckham_prot_groups)
-        # after removing protein groups some peptide groups might have lost proteins that discerned them from others.
-        # Otherwise said, they will now have the same neighboring protein groups as some other peptide groups, which
-        # was impossible before. To fix it, we have to reform the groups.
-        min_self = min_self.form_groups(merging_merged=True)
-        return min_self, beckham_prot_groups
+        G = self.form_groups()
+        beckham_prot_groups = set([])
+        prev_prots_cnt = G.prot_cnt()
+        it = 0
+        while it < max_iter:
+            cover = inner_greedy_minimal_cover(G)
+            rejected = {rg for rg in G.prots() if rg not in cover}
+            beckham_prot_groups.update(rejected)
+            # removing beckham prots will not leave any peptides without neighbors, as they are covered by min_prot_cover.
+            G.remove_nodes_from(rejected)
+            # after removing nodes from cover, some covered nodes might have lost proteins that discerned them from others.
+            # Otherwise said, they will now have the same neighboring protein groups as some other peptide groups, which
+            # was impossible before. To fix it, we have to reform the groups.
+            G = G.form_groups(merging_merged=True)
+            prots_cnt = G.prot_cnt()
+            if prev_prots_cnt == prots_cnt:
+                break
+            else:
+                prev_prots_cnt = prots_cnt
+            it += 1
+        return G, beckham_prot_groups
 
 
 # TODO: update this test.
