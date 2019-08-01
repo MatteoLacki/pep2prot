@@ -69,7 +69,7 @@ def greedy_minimal_cover_2(G, A_covers_B=True):
         list: A nodes that cover the B nodes
     """
     G = G.copy()
-    to_cover, covering = (G.B, G.A) if A_covers_B else (G.A, G.B)
+    to_cover, covering = (G.B, G.A) if A_covers_B else (G.A, G.B) # this works even if we remove nodes!
 
     non_coverable = [m for m in to_cover() if G.degree(m) == 0]
     if len(non_coverable) > 0:

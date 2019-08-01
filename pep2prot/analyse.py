@@ -25,11 +25,10 @@ def isoquant_peptide_report(pep_rep_path,
         tuple: first two elements will always be the prettified intensity reports.
         If 'full_outcome' is true, the result will contain after these:
         the full protein-peptide graph, its induced minimal graph, 
-        peptides that could not be explained by any proteins,
-        proteins that did not correspond to any peptide.
-        proteins that did not have more than 'min_pepNo_per_prot' peptides,
-        peptides that neighbor only 
-
+        tuple with lonely peptides and proteins,
+        tuple with peptides attached only to proteins with low support and these proteins,
+        proteins groups not needed to cover existing peptide groups,
+        minimal, deconvoluted, and maximal intensities of protein groups.
     """
     pep_rep_path = Path(pep_rep_path).expanduser()
     fastas_path  = Path(fastas_path).expanduser()
@@ -61,7 +60,9 @@ def isoquant_peptide_report(pep_rep_path,
 
     if verbose:
         print('Building the peptide-protein graph.')
-    G, lonely_peps, lonely_prots, prots_no_peps, peps_no_prots = get_full_prot_pep_graph(DD.index, DD.prots, min_pepNo_per_prot)
+
+    G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
+    lonely, unsupported = G.remove_lonely_and_unsupported(min_pepNo_per_prot)
     H, beckham_prot_groups = G.get_minimal_graph()
 
     pep2pepgr = {p:pg for pg in H.peps() for p in pg}
@@ -82,7 +83,7 @@ def isoquant_peptide_report(pep_rep_path,
     all_prots_nice = prettify_protein_informations(all_prots, prot_info)
 
     if full_outcome:
-        return prots_I_nice, all_prots_nice, G, H, lonely_peps, lonely_prots, prots_no_peps, peps_no_prots, beckham_prot_groups, prots_min_I, prots_I, prots_max_I
+        return prots_I_nice, all_prots_nice, G, H, lonely, unsupported, beckham_prot_groups, prots_min_I, prots_I, prots_max_I
     else:
         return prots_I_nice, all_prots_nice
 

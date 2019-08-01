@@ -83,7 +83,6 @@ class BiGraph(nx.Graph):
     def __repr__(self):
         return "BiGraph(#A={} #B={} #E={})".format(*self.nodes_cnt(), len(self.edges))
 
-    #TODO: start using bipartite layout for components.
     def draw(self, show=True, with_labels=False, node_size=10, *args, **kwds):
         import matplotlib.pyplot as plt
         node_colors = [('red' if self.node[n]['A'] else 'blue') for n in self]
@@ -180,7 +179,7 @@ class BiGraph(nx.Graph):
         return cls((a,b) for a in nx.bipartite.sets(G)[0] for b in G[a])
 
 
-#TODO: modify the draw function to add a legend for colors.
+
 class ProtPepGraph(BiGraph):
     def prots(self):
         """Iterate proteins."""
@@ -206,7 +205,30 @@ class ProtPepGraph(BiGraph):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
 
     def minimal_protein_cover(self):
-        return self.minimal_cover(A_covers_B=True)
+        return self.minimal_cover(A_covers_B=True) # A = proteins, B = peptides, as seen above...
+
+    def remove_lonely_and_unsupported(self, min_pepNo_per_prot=2):
+        """Get the full protein-peptide graph.
+        
+        Args:
+            min_pepNo_per_prot (int): The minimal number of peptides per protein.
+        Returns:
+            Tuple: a tuple with lonely peptide and prots, and a tuple of peptides not belonging to unsupproted proteins and these proteins.    
+        """
+        # removing pairs r-p, where both r and p have no other neighbors
+        lonely_peps = {p for p in self.peps() if self.degree(p) == 0}
+        lonely_prots = {p for p in self.prots() if self.degree(p) == 0}
+        self.remove_nodes_from(lonely_peps)
+        self.remove_nodes_from(lonely_prots)
+
+        prots_no_peps = {r for r in self.prots() if self.degree(r) < min_pepNo_per_prot}
+        peps_no_prots = {p for r in prots_no_peps for p in self[r]}
+        self.remove_nodes_from(prots_no_peps)
+        # Remove only those peps that did not have any other neighbors than low count prots.
+        # e.g. A-0-B C-1-D-2 and minimal number of peptide per protein is 2, then prots_no_peps = {A,B,C} and peps_no_prots = {0}
+        peps_no_prots = {p for p in peps_no_prots if self.degree(p) == 0}
+        self.remove_nodes_from(peps_no_prots)
+        return (lonely_peps, lonely_prots), (peps_no_prots, prots_no_peps)
 
     def get_minimal_graph(self):
         """Get the induced minimal graph.
@@ -219,39 +241,13 @@ class ProtPepGraph(BiGraph):
         min_self = self.form_groups()
         min_prot_cover = min_self.minimal_protein_cover()
         beckham_prot_groups = {rg for rg in min_self.prots() if rg not in min_prot_cover}
+        # removing beckham prots will not leave any peptides without neighbors, as they are covered by min_prot_cover.
         min_self.remove_nodes_from(beckham_prot_groups)
         # after removing protein groups some peptide groups might have lost proteins that discerned them from others.
         # Otherwise said, they will now have the same neighboring protein groups as some other peptide groups, which
         # was impossible before. To fix it, we have to reform the groups.
         min_self = min_self.form_groups(merging_merged=True)
         return min_self, beckham_prot_groups
-
-
-def get_full_prot_pep_graph(peptides, proteins, min_pepNo_per_prot=2):
-    """Get the full protein-peptide graph.
-    
-    Args:
-        peptides (iterable): Peptides discovered by some black-box software you paid too much for.
-        proteins (iterable): Proteins assigned to discovered peptides.
-    Returns:
-        pep2prot.Graph.ProtPepGraph: Protein-peptide graph trimmed to proteins that have at least 'min_pepNo_per_prot' potential peptides.
-    """
-    G = ProtPepGraph((r,p) for rs, p in zip(proteins, peptides) for r in rs)
-    # removing pairs r-p, where both r and p have no other neighbors
-    lonely_peps = {p for p in G.peps() if G.degree(p) == 0}
-    lonely_prots = {p for p in G.prots() if G.degree(p) == 0}
-    G.remove_nodes_from(lonely_peps)
-    G.remove_nodes_from(lonely_prots)
-
-    prots_no_peps = {r for r in G.prots() if G.degree(r) < min_pepNo_per_prot}
-    peps_no_prots = {p for r in prots_no_peps for p in G[r]}
-    G.remove_nodes_from(prots_no_peps)
-    # Remove only those peps that did not have any other neighbors than low count prots.
-    # e.g. A-0-B C-1-D-2 and minimal number of peptide per protein is 2, then prots_no_peps = {A,B,C} and peps_no_prots = {0}
-    peps_no_prots = {p for p in peps_no_prots if G.degree(p) == 0}
-    G.remove_nodes_from(peps_no_prots)
-    
-    return G, lonely_peps, lonely_prots, prots_no_peps, peps_no_prots
 
 
 # TODO: update this test.
