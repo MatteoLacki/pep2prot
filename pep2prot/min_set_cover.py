@@ -126,13 +126,13 @@ def test_greedy_minimal_cover_2():
 
     # Interesing case:
     TSC = BiGraph([('A',1),('A',2),('A',3),
-              ('B',5),('B',2),('B',3),('B',4),
-              ('C',4),('C',5),
-              ('D',6),('D',7),('D',8),('D',9),
-              ('E',8),('E',9),
-              ('F',10),('F',12),
-              ('G',11),('G',12),
-              ('H',10),('H',11),('H',12)])
+                   ('B',5),('B',2),('B',3),('B',4),
+                   ('C',4),('C',5),
+                   ('D',6),('D',7),('D',8),('D',9),
+                   ('E',8),('E',9),
+                   ('F',10),('F',12),
+                   ('G',11),('G',12),
+                   ('H',10),('H',11),('H',12)])
     TSC = TSC.form_groups()
     TSC_MC = TSC.greedy_minimal_cover()
     assert TSC_MC=={frozenset({'H'}), frozenset({'D'}), frozenset({'A'}), frozenset({'C'}), frozenset({'B'})}

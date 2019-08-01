@@ -12,12 +12,23 @@ from .postprocessing import summarize_prots, get_stats, prettify_protein_informa
 def isoquant_peptide_report(pep_rep_path, 
                             fastas_path,
                             cluster_buster=complex_cluster_buster,
-                            verbose=False):
+                            min_pepNo_per_prot=2,
+                            verbose=False,
+                            full_outcome=False):
     """Analyze IsoQuant peptide report.
 
     Args:
         pep_rep_path (str or pathlib.Path): Path to a peptide report.
         fastas_path (str or pathlib.Path): Path to a fasta file.
+
+    Returns:
+        tuple: first two elements will always be the prettified intensity reports.
+        If 'full_outcome' is true, the result will contain after these:
+        the full protein-peptide graph, its induced minimal graph, 
+        peptides that could not be explained by any proteins,
+        proteins that did not correspond to any peptide.
+        proteins that did not have more than 'min_pepNo_per_prot' peptides,
+        peptides that neighbor only 
 
     """
     pep_rep_path = Path(pep_rep_path).expanduser()
@@ -39,10 +50,10 @@ def isoquant_peptide_report(pep_rep_path,
 
     if verbose:
         print('Calculating coverages.')
-    prots     = get_protein_coverages(D, fastas)
+    prots = get_protein_coverages(D, fastas)
     uni_cols  = ['peptide_overall_max_score','peptide_fdr_level',
-                      'peptide_overall_replication_rate','prots',
-                      'pre_homology_accessions','pi','mw']
+                 'peptide_overall_replication_rate','prots',
+                 'pre_homology_accessions','pi','mw']
     if verbose:
         print('Aggregating the same peptides that ended up in different clusters.')
     DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
@@ -50,23 +61,28 @@ def isoquant_peptide_report(pep_rep_path,
 
     if verbose:
         print('Building the peptide-protein graph.')
-    H, prots_no_peps, peps_no_prots, beckham_prots = get_peptide_protein_graph(DD) 
-    pep2pepgr      = {p:pg for pg in H.peps() for p in pg}
-    DDinH          = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
+    G, lonely_peps, lonely_prots, prots_no_peps, peps_no_prots = get_full_prot_pep_graph(DD.index, DD.prots, min_pepNo_per_prot)
+    H, beckham_prot_groups = G.get_minimal_graph()
+
+    pep2pepgr = {p:pg for pg in H.peps() for p in pg}
+    DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
     DDinH['pepgr'] = DDinH.index.map(pep2pepgr)
-    peps_I         = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+    peps_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 
     if verbose:
         print('Spreading intensities from peptides to proteins.')
     prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
-    prot_info      = summarize_prots(H, fastas, prots.pep_coverage)
-    prots_I_nice   = prettify_protein_informations(prots_I, prot_info)
-    prots_stats    = get_stats(prots_min_I, prots_I, prots_max_I)
+    prot_info = summarize_prots(H, fastas, prots.pep_coverage)
+    prots_I_nice = prettify_protein_informations(prots_I, prot_info)
+    prots_stats = get_stats(prots_min_I, prots_I, prots_max_I)
     
     if verbose:
         print('Preparing reports.')
-    all_prots      = get_full_report(prots_min_I, prots_I, prots_max_I)
+    all_prots = get_full_report(prots_min_I, prots_I, prots_max_I)
     all_prots_nice = prettify_protein_informations(all_prots, prot_info)
 
-    return prots_I_nice, all_prots_nice
+    if full_outcome:
+        return prots_I_nice, all_prots_nice, G, H, lonely_peps, lonely_prots, prots_no_peps, peps_no_prots, beckham_prot_groups, prots_min_I, prots_I, prots_max_I
+    else:
+        return prots_I_nice, all_prots_nice
 

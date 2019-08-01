@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-from furious_fastas.fastas import Fastas
+from furious_fastas.fastas import fastas
 
 
 def read_isoquant_peptide_report(path):
@@ -40,9 +40,8 @@ def read_fastas(path):
     Returns:
         dict: Mapping from proteins to their sequences.
     """
-    fastas = Fastas()
-    fastas.read(path)
-    fastas_df = pd.DataFrame.from_records((f.description, f.sequence, f.entry) for f in fastas)
+    fastas_df = fastas(path)
+    fastas_df = pd.DataFrame.from_records((f.description, f.sequence, f.entry) for f in fastas_df)
     fastas_df.columns = ['description', 'prot_seq', 'prot']
     fastas_df = fastas_df.set_index('prot')
     fastas_df['seq_len'] = fastas_df.prot_seq.map(len)

@@ -159,75 +159,99 @@ class BiGraph(nx.Graph):
         except nx.NetworkXNoCycle:
             return False
 
-    def greedy_minimal_cover(self, A_covers_B=True):
+    def minimal_cover(self, A_covers_B=True):
         return greedy_minimal_cover_2(self, A_covers_B)
 
+    @classmethod
+    def random(cls, maxA=20, maxB=40, prob=.05):
+        """Generate a random BiGraph.
 
-def random_bigraph(maxA=20, maxB=40, prob=.05):
-    """Generate a random BiGraph.
-
-    Args:
-        maxA (int): max number of nodes in A.
-        maxB (int): max number of nodes in B.
-        prob (float): probability of edge formation.
-    Returns:
-        BiGraph: A random BiGraph.
-    """
-    assert prob >= 0 and prob <= 1
-    G = nx.algorithms.bipartite.generators.random_graph(maxA, maxB, p=prob)
-    G.remove_nodes_from([n for n in G if G.degree(n) == 0])
-    G = max((G.subgraph(cc) for cc in nx.connected_components(G)), key=lambda cc: len(cc))
-    return BiGraph((a,b) for a in nx.bipartite.sets(G)[0] for b in G[a])
+        Args:
+            maxA (int): max number of nodes in A.
+            maxB (int): max number of nodes in B.
+            prob (float): probability of edge formation.
+        Returns:
+            BiGraph: A random BiGraph.
+        """
+        assert prob >= 0 and prob <= 1
+        G = nx.algorithms.bipartite.generators.random_graph(maxA, maxB, p=prob)
+        G.remove_nodes_from([n for n in G if G.degree(n) == 0])
+        G = max((G.subgraph(cc) for cc in nx.connected_components(G)), key=lambda cc: len(cc))
+        return cls((a,b) for a in nx.bipartite.sets(G)[0] for b in G[a])
 
 
 #TODO: modify the draw function to add a legend for colors.
 class ProtPepGraph(BiGraph):
     def prots(self):
+        """Iterate proteins."""
         yield from self.A()
 
     def peps(self):
+        """Iterate peptides."""
         yield from self.B()
 
     def prot_pep_pairs(self):
+        """Iterate potential peptide-protein explanations."""
         yield from self.AB()
 
     def proteins(self):
+        """Iterate proteins."""
         yield from self.prots()
 
     def peptides(self):
+        """Iterate peptides."""
         yield from self.prots()
 
     def __repr__(self):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
 
-    def greedy_minimal_cover(self):
-        # A = proteins, B = peptides.
-        return greedy_minimal_cover_2(self, A_covers_B=True)
+    def minimal_protein_cover(self):
+        return self.minimal_cover(A_covers_B=True)
+
+    def get_minimal_graph(self):
+        """Get the induced minimal graph.
+
+        The minimal graph is a version of the PepProtGraph that merges nodes that share the same neighbors and reduces that further by finding the minimal number of protein groups needed to explain the observed peptide groups.
+
+        Returns:
+            tuple containing the induced minimal PepProtGraph and the set of protein groups not necessary to explain peptide groups.
+        """
+        min_self = self.form_groups()
+        min_prot_cover = min_self.minimal_protein_cover()
+        beckham_prot_groups = {rg for rg in min_self.prots() if rg not in min_prot_cover}
+        min_self.remove_nodes_from(beckham_prot_groups)
+        # after removing protein groups some peptide groups might have lost proteins that discerned them from others.
+        # Otherwise said, they will now have the same neighboring protein groups as some other peptide groups, which
+        # was impossible before. To fix it, we have to reform the groups.
+        min_self = min_self.form_groups(merging_merged=True)
+        return min_self, beckham_prot_groups
 
 
-#TODO: make this a graph method!!!
-#TODO: make another method that creates the graph.
-def get_peptide_protein_graph(pep2prots, min_pepNo_per_prot=2):
-    """Get the petide-protein-groups graph.
-
+def get_full_prot_pep_graph(peptides, proteins, min_pepNo_per_prot=2):
+    """Get the full protein-peptide graph.
+    
     Args:
-        pep2prots (pd.DataFrame): Uniquely indexed by peptides (no. duplicates).Column with sets of corresponfing proteins, 'prots', is required.
-        min_pepNo_per_prot (int): Minimum number of peptides to qualify a protein.    
-    Return:
-        triplette: Simplified protein-peptide graph, proteins that did not have enough peptides, and Beckham's razor proteins (go Victoria!). 
+        peptides (iterable): Peptides discovered by some black-box software you paid too much for.
+        proteins (iterable): Proteins assigned to discovered peptides.
+    Returns:
+        pep2prot.Graph.ProtPepGraph: Protein-peptide graph trimmed to proteins that have at least 'min_pepNo_per_prot' potential peptides.
     """
-    G = ProtPepGraph((r,p) for rs, p in zip(pep2prots.prots, pep2prots.index) for r in rs)
+    G = ProtPepGraph((r,p) for rs, p in zip(proteins, peptides) for r in rs)
     # removing pairs r-p, where both r and p have no other neighbors
+    lonely_peps = {p for p in G.peps() if G.degree(p) == 0}
+    lonely_prots = {p for p in G.prots() if G.degree(p) == 0}
+    G.remove_nodes_from(lonely_peps)
+    G.remove_nodes_from(lonely_prots)
+
     prots_no_peps = {r for r in G.prots() if G.degree(r) < min_pepNo_per_prot}
-    peps_no_prots = {p for r in prots_no_peps for p in G[r] if G.degree(p) == 1} 
+    peps_no_prots = {p for r in prots_no_peps for p in G[r]}
     G.remove_nodes_from(prots_no_peps)
+    # Remove only those peps that did not have any other neighbors than low count prots.
+    # e.g. A-0-B C-1-D-2 and minimal number of peptide per protein is 2, then prots_no_peps = {A,B,C} and peps_no_prots = {0}
+    peps_no_prots = {p for p in peps_no_prots if G.degree(p) == 0}
     G.remove_nodes_from(peps_no_prots)
-    H = G.form_groups()
-    HMC = H.greedy_minimal_cover() # Her Majesty's Minimal Set Cover.
-    beckham_prots = {r for rg in H.prots() if rg not in HMC for r in rg}
-    H.remove_nodes_from([rg for rg in H.prots() if rg not in HMC]) # after that step the drawing will not include small red dots =)
-    H = H.form_groups(merging_merged=True)# removal of proteins might leave some peptide groups attributed to precisely the same proteins groups
-    return H, prots_no_peps, peps_no_prots, beckham_prots
+    
+    return G, lonely_peps, lonely_prots, prots_no_peps, peps_no_prots
 
 
 # TODO: update this test.
