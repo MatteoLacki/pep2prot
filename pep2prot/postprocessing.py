@@ -99,6 +99,7 @@ def prettify_protein_informations(prot_intensities, prot_info):
     X = prot_info.join(prot_intensities.applymap(int))
     X = X.set_index('representative protein')
     X.pep_coverage = [round(pc*100,2) for pc in X.pep_coverage]
+    X.sort_values(by='pep_coverage', ascending=False, inplace=True)
     X = X.rename(columns={'prot_seq':'sequence', 'seq_len':'sequence length', 'pep_coverage':'% of protein sequence covered by peptides', 'protein_group': 'other proteins in group'})
     X = X.drop(columns='sequence')
     X['monoisotopic mass'] = [round(m,3) for m in X['monoisotopic mass']]

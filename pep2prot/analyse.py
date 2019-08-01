@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 from .read import read_isoquant_peptide_report, read_fastas
-from .graphs import ProtPepGraph, BiGraph, get_peptide_protein_graph
+from .graphs import ProtPepGraph, BiGraph
 from .preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
 from .intensities import get_prot_intensities
 from .postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
@@ -11,16 +11,21 @@ from .postprocessing import summarize_prots, get_stats, prettify_protein_informa
 
 def isoquant_peptide_report(pep_rep_path, 
                             fastas_path,
-                            cluster_buster=complex_cluster_buster,
                             min_pepNo_per_prot=2,
+                            min_cover_max_iter=float('inf'),
                             verbose=False,
+                            cluster_buster=complex_cluster_buster,
                             full_outcome=False):
     """Analyze IsoQuant peptide report.
 
     Args:
         pep_rep_path (str or pathlib.Path): Path to a peptide report.
         fastas_path (str or pathlib.Path): Path to a fasta file.
-
+        min_pepNo_per_prot (int): The minimal number of peptides per protein.
+        min_cover_max_iter (int): The maximal number of repeats of the greedy minimal cover finder.
+        verbose (boolean): Show messages?
+        cluster_buster (function): The clustering procedure to use to get rid of peptides spread over different clusters.
+        full_outcome (boolean): Return more output?
     Returns:
         tuple: first two elements will always be the prettified intensity reports.
         If 'full_outcome' is true, the result will contain after these:
@@ -63,7 +68,7 @@ def isoquant_peptide_report(pep_rep_path,
 
     G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
     lonely, unsupported = G.remove_lonely_and_unsupported(min_pepNo_per_prot)
-    H, beckham_prot_groups = G.get_minimal_graph()
+    H, beckham_prot_groups = G.get_minimal_graph(min_cover_max_iter)
 
     pep2pepgr = {p:pg for pg in H.peps() for p in pg}
     DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?

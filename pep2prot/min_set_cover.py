@@ -1,7 +1,3 @@
-class SetNonCoverableException(Exception):
-    pass
-
-
 def inner_greedy_minimal_cover(G):
     G = G.copy()
     cover = set([])
@@ -34,7 +30,10 @@ def inner_greedy_minimal_cover(G):
 
 
 
+
 # OLDER 
+class SetNonCoverableException(Exception):
+    pass
 
 def greedy_minimal_cover_prev(G, A_covers_B=True):
     """Get the greedy approximation to the minimal set cover.

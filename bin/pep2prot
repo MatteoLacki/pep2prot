@@ -5,19 +5,22 @@ from   pathlib import Path
 
 from pep2prot.analyse import isoquant_peptide_report
 
+debug = False
 
 parser = argparse.ArgumentParser(description='Turn an IsoQuant peptide report into a protein report. Like a BONZO.')
 parser.add_argument("pep_rep_path", type=str, help="Path to a peptide report.")
 parser.add_argument("fasta_path", type=str, help="Path to corresponding fasta file.")
-parser.add_argument("-o", "--output", type=str, help="Path to corresponding fasta file.", default='.')
-parser.add_argument( "--excel",
-                action='store_const',
-                const=True,
-                default=False,
-                help="Return two csvs instead of one excel report.")
+parser.add_argument("-o", "--output", type=str, help="Path to a custom folder for output.", default='.')
+parser.add_argument("--min_pepNo_per_prot", type=int, help="The The minimum number of peptides per proteins.", default=2)
+parser.add_argument("--min_cover_max_iter", type=int, help="The maximum number of iterations for the minimum cover calculator (by default unconstrained).", default=float('inf'))
+parser.add_argument("--excel",action='store_const', const=True, default=False,
+                    help="Return two csvs instead of one excel report.")
+parser.add_argument("--silent", action='store_const', const=True, default=False,
+                    help="No output to console.")
 
 args = parser.parse_args()
-# print(args.__dict__)
+if debug:
+    print(args.__dict__)
 
 fasta_path   = Path(args.fasta_path).expanduser()
 pep_rep_path = Path(args.pep_rep_path).expanduser()
@@ -26,13 +29,23 @@ if 'fas' not in fasta_path.suffix:
 
 output_path = args.output
 if output_path == '.':
-	output_path = pep_rep_path.parent
+    output_path = pep_rep_path.parent
 else:
-	output_path = Path(output_path).expanduser()
+    output_path = Path(output_path).expanduser()
+    output_path.mkdir(parents=True, exist_ok=True)
 
-print(fasta_path, pep_rep_path, output_path)
+# min_cover_max_iter = args.min_cover_max_iter if args.min_cover_max_iter != -1 else float('inf')
 
-prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path, fasta_path, verbose=True)
+if not args.silent:
+    print('Welcome weary scientist!')
+    print('Relax, as we do the job for you.')
+    print()
+
+prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path,
+                                                       fasta_path,
+                                                       args.min_pepNo_per_prot,
+                                                       args.min_cover_max_iter,
+                                                       not args.silent)
 
 if args.excel:
     with pd.ExcelWriter(output_path/"protein_report.xlsx") as writer:
@@ -42,4 +55,6 @@ else:
     prots_I_nice.to_csv(output_path/"protein_report.csv", sep=';')
     all_prots_nice.to_csv(output_path/"protein_report_full.csv", sep=';')
 
-print('KARAMBA! ES HAT FUNKTIONIERT!')
+if not args.silent:
+    print()
+    print("It worked! Or at least so it would seem.")

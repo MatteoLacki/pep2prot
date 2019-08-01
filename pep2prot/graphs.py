@@ -229,6 +229,9 @@ class ProtPepGraph(BiGraph):
 
         The minimal graph is a version of the PepProtGraph that merges nodes that share the same neighbors and reduces that further by finding the minimal number of protein groups needed to explain the observed peptide groups.
 
+        Args:
+            max_iter (int): The maximal number of repeats of the greedy minimal cover finder.
+
         Returns:
             tuple containing the induced minimal PepProtGraph and the set of protein groups not necessary to explain peptide groups.
         """

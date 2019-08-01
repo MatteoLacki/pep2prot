@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-debug = True
+debug = False
 
 def get_prot_intensities(H, peps_I):
     """Get intensities based on a protein-peptide graph.
