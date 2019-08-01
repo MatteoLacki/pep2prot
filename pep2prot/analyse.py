@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 from .read import read_isoquant_peptide_report, read_fastas
-from .graphs import ProtPepGraph, BiGraph
+from .graphs.pep_prot_graph import ProtPepGraph
 from .preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
 from .intensities import get_prot_intensities
 from .postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
@@ -12,7 +12,6 @@ from .postprocessing import summarize_prots, get_stats, prettify_protein_informa
 def isoquant_peptide_report(pep_rep_path, 
                             fastas_path,
                             min_pepNo_per_prot=2,
-                            min_cover_max_iter=float('inf'),
                             verbose=False,
                             cluster_buster=complex_cluster_buster,
                             full_outcome=False):
@@ -22,7 +21,6 @@ def isoquant_peptide_report(pep_rep_path,
         pep_rep_path (str or pathlib.Path): Path to a peptide report.
         fastas_path (str or pathlib.Path): Path to a fasta file.
         min_pepNo_per_prot (int): The minimal number of peptides per protein.
-        min_cover_max_iter (int): The maximal number of repeats of the greedy minimal cover finder.
         verbose (boolean): Show messages?
         cluster_buster (function): The clustering procedure to use to get rid of peptides spread over different clusters.
         full_outcome (boolean): Return more output?
@@ -68,7 +66,7 @@ def isoquant_peptide_report(pep_rep_path,
 
     G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
     lonely, unsupported = G.remove_lonely_and_unsupported(min_pepNo_per_prot)
-    H, beckham_prot_groups = G.get_minimal_graph(min_cover_max_iter)
+    H, rejected = G.get_minimal_graph()
 
     pep2pepgr = {p:pg for pg in H.peps() for p in pg}
     DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
@@ -88,7 +86,7 @@ def isoquant_peptide_report(pep_rep_path,
     all_prots_nice = prettify_protein_informations(all_prots, prot_info)
 
     if full_outcome:
-        return prots_I_nice, all_prots_nice, G, H, lonely, unsupported, beckham_prot_groups, prots_min_I, prots_I, prots_max_I
+        return prots_I_nice, all_prots_nice, G, H, lonely, unsupported, rejected, prots_min_I, prots_I, prots_max_I
     else:
         return prots_I_nice, all_prots_nice
 
