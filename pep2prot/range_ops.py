@@ -29,10 +29,10 @@ def range_list_len(range_list):
     return N
 
 
-def reverse_sorted_range_list_len(reverse_sorted_range_list):
+def covered_area(sorted_intervals):
     s0 = e0 = -float('Inf')
     N = 0
-    for s1,e1 in reverse_sorted_range_list:
+    for s1,e1 in sorted_intervals:
         if s1 >= e0:
             N += e1-s1
             s0,e0 = s1,e1

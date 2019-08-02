@@ -10,6 +10,7 @@ from pandas import DataFrame as df
 from pathlib import Path
 from collections import Counter
 import networkx as nx
+import matplotlib.pyplot as plt
 
 from pep2prot.read import read_isoquant_peptide_report, read_fastas
 from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
@@ -24,6 +25,7 @@ cluster_buster = complex_cluster_buster
 
 D = read_isoquant_peptide_report(pep_rep_path)
 D, I_cols = preprocess_isoquant_peptide_report(D)
+
 fastas = read_fastas(fastas_path)
 observed_prots = {r for rg in D.prots for r in rg}
 assert all(r in fastas.index for r in observed_prots), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
@@ -35,8 +37,6 @@ uni_cols = ['peptide_overall_max_score','peptide_fdr_level',
 DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
 assert np.all(DD.groupby(['pep','prots']).size() == 1), "Some peptides are still across different clusters."
 
-# rg = frozenset({'K1H1_HUMAN','K1H1_HUMAN_CONTA', 'K1HB_HUMAN_CONTA', 'KT33B_HUMAN'})
-# r = next(iter(rg))
 G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
 lonely, unsupported = G.remove_lonely_and_unsupported(2)
 H, rejected = G.get_minimal_graph()
@@ -45,84 +45,20 @@ pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
 DDinH['pepgr'] = DDinH.index.map(pep2pepgr)
 pep_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
-# TO THE INTENSITIES!!!
 
-debug = True
-
-prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
+prot_minI, prot_I, prot_maxI = get_prot_intensities(H, pep_I)
 prot_info = summarize_prots(H, fastas, prots.pep_coverage)
-prots_I_nice = prettify_protein_informations(prots_I, prot_info)
-prots_stats = get_stats(prots_min_I, prots_I, prots_max_I)
 
 
 
-# buggy_weights = weights[weights.isnull().any(axis=1)]
-# buggy_pep_groups = set(buggy_weights.index.get_level_values('pep'))
-# buggy_peps = {p for pg in buggy_pep_groups for p in pg}
-# D.loc[buggy_peps]
-# buggy_prot_groups = set(buggy_weights.index.get_level_values('prot'))
-# # H.subgraph(buggy_pep_groups|buggy_prot_groups).draw(with_labels=True) # looks normal
-# rg = next(iter(buggy_prot_groups))
 
-# rg in beckham_prot_groups
+plt.hist(prot_info.pep_coverage, bins=100)
+plt.show()
 
+prot_Inice = prettify_protein_informations(prot_I, prot_info)
+prot_stats = get_stats(prot_minI, prot_I, prot_maxI)
 
-# H[rg]
-# Hbug = H.subgraph(nx.node_connected_component(H, rg))
-# Hbug.draw(with_labels=True, font_size=6)
-
-# HbugMC = Hbug.minimal_protein_cover()
-# HMC = H.minimal_protein_cover()
-
-# rg in HbugMC
-# rg in HMC
-
-
-# weights.xs(pep=pg, prot=rg)
-
-# weights.loc[pg]
-# weights.index
-# pg in weights.index.get_level_values('pep')
-# rg in weights.index.get_level_values('prot')
-# (pg, rg) in weights.index
-
-# prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
-
-# weights.loc[buggy_pep_groups]
-# x = weights.xs(pg, level='pep')
-# x = x.isna().any(axis=1)
-# rg = next(iter(x[x].index))
-# D.loc['LAADDFR', I_cols]
-# # there might be a need for left or right merge somewhere
-
-# weights.xs((pg,rg), level=('pep','prot'))
-# weights
-# prots_curr_I.loc[rg]
-# prots_curr_I.loc[]
-# prots_curr_I.loc[[frozenset({'K1C15_HUMAN', 'K1C15_HUMAN_CONTA'})]]
-# prots_curr_I.loc[[rg]]
-# # OK, so there is a bug! some protein group is simply not there. how come???
-# set(otherpeps2mixprots.get_level_values('prot')) - set(prots_curr_I.index)
-# H[rg]
-# set(peps2prots.get_level_values('pep')) - set(otherpeps_I.index)
-
-# # in principle, it works.
-# edges = [('A',0), ('A',1), ('B',1), ('B',2), ('B',4), ('C',2), ('C',3), ('C',4), ('C',5), ('D',4), ('D',5), ('D',6)]
-# test = ProtPepGraph(edges)
-# H_test, beckham_prot_groups_test = test.get_minimal_graph()
-# H_test.draw(with_labels=True)
-
-
-# get_full_prot_pep_graph()
-
-
-prot_info      = summarize_prots(H, fastas, prots.pep_coverage)
-prots_I_nice   = prettify_protein_informations(prots_I, prot_info)
-prots_stats    = get_stats(prots_min_I, prots_I, prots_max_I)
-
-if verbose:
-    print('Preparing reports.')
-all_prots      = get_full_report(prots_min_I, prots_I, prots_max_I)
+all_prots = get_full_report(prot_minI, prot_I, prot_maxI)
 all_prots_nice = prettify_protein_informations(all_prots, prot_info)
 
 
