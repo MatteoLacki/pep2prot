@@ -96,8 +96,8 @@ def get_prot_intensities(H, pep_I):
     prot_I.loc[bprot] += bprot_I# update only bprot
     prot_I = prot_I.loc[sorted_prot]
     assert prot_I.shape[0] == prot_cnt, "prot_I has a wrong number of proteins."
-    assert np.all(prot_minI <= prots_I), "Some deconvoluted intensities are smaller then minimal intensities."
-    assert np.all(prots_I <= prot_maxI), "Some deconvoluted intensities are larger then maximal intensities."
+    assert np.all(prot_minI <= prot_I), "Some deconvoluted intensities are smaller then minimal intensities."
+    assert np.all(prot_I <= prot_maxI), "Some deconvoluted intensities are larger then maximal intensities."
 
-    return prot_minI, prots_I, prot_maxI
+    return prot_minI, prot_I, prot_maxI
 

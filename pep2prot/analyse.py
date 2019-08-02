@@ -71,22 +71,22 @@ def isoquant_peptide_report(pep_rep_path,
     pep2pepgr = {p:pg for pg in H.peps() for p in pg}
     DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
     DDinH['pepgr'] = DDinH.index.map(pep2pepgr)
-    peps_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+    pep_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 
     if verbose:
         print('Spreading intensities from peptides to proteins.')
-    prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
+    prot_min_I, prot_I, prot_max_I = get_prot_intensities(H, pep_I)
     prot_info = summarize_prots(H, fastas, prots.pep_coverage)
-    prots_I_nice = prettify_protein_informations(prots_I, prot_info)
-    prots_stats = get_stats(prots_min_I, prots_I, prots_max_I)
+    prot_I_nice = prettify_protein_informations(prot_I, prot_info)
+    prot_stats = get_stats(prot_min_I, prot_I, prot_max_I)
     
     if verbose:
         print('Preparing reports.')
-    all_prots = get_full_report(prots_min_I, prots_I, prots_max_I)
-    all_prots_nice = prettify_protein_informations(all_prots, prot_info)
+    all_prots = get_full_report(prot_min_I, prot_I, prot_max_I)
+    all_prot_nice = prettify_protein_informations(all_prots, prot_info)
 
     if full_outcome:
-        return prots_I_nice, all_prots_nice, G, H, lonely, unsupported, rejected, prots_min_I, prots_I, prots_max_I
+        return prot_I_nice, all_prot_nice, G, H, lonely, unsupported, rejected, prot_min_I, prot_I, prot_max_I
     else:
-        return prots_I_nice, all_prots_nice
+        return prot_I_nice, all_prot_nice
 

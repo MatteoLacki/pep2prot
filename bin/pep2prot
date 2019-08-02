@@ -8,27 +8,27 @@ from pep2prot.analyse import isoquant_peptide_report
 debug = False
 
 parser = argparse.ArgumentParser(description='Turn an IsoQuant peptide report into a protein report. Like a BONZO.')
-parser.add_argument("pep_rep_path", type=str, help="Path to a peptide report.")
-parser.add_argument("fasta_path", type=str, help="Path to corresponding fasta file.")
-parser.add_argument("-o", "--output", type=str, help="Path to a custom folder for output.", default='.')
-parser.add_argument("--min_pepNo_per_prot", type=int, help="The The minimum number of peptides per proteins.", default=2)
+parser.add_argument("peprep", type=str, help="peptide report path")
+parser.add_argument("fasta", type=str, help="fasta file path")
+parser.add_argument("-o", "--output", type=str, help="custom output path [defaults to peptide report folder]", default='.')
+parser.add_argument("--min_pep_per_prot", type=int, help="minimum number of peptides per protein [default = 2].", default=2)
 parser.add_argument("--excel",action='store_const', const=True, default=False,
-                    help="Return two csvs instead of one excel report.")
+                    help="get one excel report instead of two csvs [slow]")
 parser.add_argument("--silent", action='store_const', const=True, default=False,
-                    help="No output to console.")
+                    help="show no console output")
 
 args = parser.parse_args()
 if debug:
     print(args.__dict__)
 
-fasta_path = Path(args.fasta_path).expanduser()
-pep_rep_path = Path(args.pep_rep_path).expanduser()
-if 'fas' not in fasta_path.suffix:
-    fasta_path, pep_rep_path = pep_rep_path, fasta_path
+fasta = Path(args.fasta).expanduser()
+peprep = Path(args.peprep).expanduser()
+if 'fas' not in fasta.suffix:
+    fasta, peprep = peprep, fasta
 
 output_path = args.output
 if output_path == '.':
-    output_path = pep_rep_path.parent
+    output_path = peprep.parent
 else:
     output_path = Path(output_path).expanduser()
     output_path.mkdir(parents=True, exist_ok=True)
@@ -40,9 +40,9 @@ if not args.silent:
     print('Relax, as we do the job for you.')
     print()
 
-prots_I_nice, all_prots_nice = isoquant_peptide_report(pep_rep_path,
-                                                       fasta_path,
-                                                       args.min_pepNo_per_prot,
+prots_I_nice, all_prots_nice = isoquant_peptide_report(peprep,
+                                                       fasta,
+                                                       args.min_pep_per_prot,
                                                        not args.silent)
 
 if args.excel:
