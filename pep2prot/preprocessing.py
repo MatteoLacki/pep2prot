@@ -58,6 +58,7 @@ def get_protein_coverages(D, fastas, all_out=False):
     assert np.all(prots.seq_len >= prots.pep_cover_len), "Peptide coverage exceeded protein length. If you ask me, if that is not an error, then what is?"
 
     prots['pep_coverage'] = prots.pep_cover_len/prots.seq_len
+    assert np.all(0 <= prots.pep_coverage) and np.all(prots.pep_coverage <= 1), "Some coverages were outside the unit interval."
     if all_out:
         return prots, X
     else:

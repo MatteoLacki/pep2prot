@@ -49,18 +49,17 @@ pep_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 prot_minI, prot_I, prot_maxI = get_prot_intensities(H, pep_I)
 prot_info = summarize_prots(H, fastas, prots.pep_coverage)
 
-
-
-
 plt.hist(prot_info.pep_coverage, bins=100)
 plt.show()
 
 prot_Inice = prettify_protein_informations(prot_I, prot_info)
 prot_stats = get_stats(prot_minI, prot_I, prot_maxI)
 
+prot_Inice.columns
+any(';' in d for d in prot_Inice.description)
+
 all_prots = get_full_report(prot_minI, prot_I, prot_maxI)
 all_prots_nice = prettify_protein_informations(all_prots, prot_info)
-
 
 
 
