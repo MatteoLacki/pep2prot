@@ -45,13 +45,15 @@ prots_I_nice, all_prots_nice = isoquant_peptide_report(peprep,
                                                        args.min_pep_per_prot,
                                                        not args.silent)
 
+output_file = peprep.stem.replace('peptide', 'protein') if 'peptide' in peprep.stem else 'protein_report'
 if args.excel:
-    with pd.ExcelWriter(output_path/"protein_report.xlsx") as writer:
+    output_file += ".xlsx"
+    with pd.ExcelWriter(output_path/output_file) as writer:
         prots_I_nice.to_excel(writer, sheet_name='report')
         all_prots_nice.to_excel(writer, sheet_name='extended report')    
 else:
-    prots_I_nice.to_csv(output_path/"protein_report.csv", sep=';')
-    all_prots_nice.to_csv(output_path/"protein_report_full.csv", sep=';')
+    prots_I_nice.to_csv(output_path/(output_file+".csv"), sep=';')
+    all_prots_nice.to_csv(output_path/(output_file+"_full.csv"), sep=';')
 
 if not args.silent:
     print()
