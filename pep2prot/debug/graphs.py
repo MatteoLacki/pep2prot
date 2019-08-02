@@ -178,9 +178,19 @@ class BiGraph(nx.Graph):
 
 
 class ProtPepGraph(BiGraph):
-    def prots(self):
-        """Iterate proteins."""
-        yield from self.A()
+    def prots(self, deg=None):
+        """Iterate proteins.
+
+        Args:
+            deg: The degree of the protein.
+        Yields:
+        Proteins (with a given degree if specified)."""
+        for r in self.A():
+            if not deg:
+                yield r
+            else:
+                if self.degree(r) == deg:
+                    yield r
     proteins = prots
     
     def prot_cnt(self):

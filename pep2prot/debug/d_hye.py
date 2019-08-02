@@ -6,6 +6,7 @@ import pandas as pd
 pd.set_option('display.max_rows', 10)
 pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 30)#display whole column without truncation
+from pandas import DataFrame as df
 from pathlib import Path
 from collections import Counter
 import networkx as nx
@@ -15,7 +16,6 @@ from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_prote
 from pep2prot.graphs.pep_prot_graph import ProtPepGraph
 from pep2prot.intensities import get_prot_intensities
 from pep2prot.postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
-
 
 test_data = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 pep_rep_path = test_data/'hye_peprep.csv'
@@ -29,7 +29,7 @@ observed_prots = {r for rg in D.prots for r in rg}
 assert all(r in fastas.index for r in observed_prots), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
 prots = get_protein_coverages(D, fastas)
 uni_cols = ['peptide_overall_max_score','peptide_fdr_level',
-            'peptide_overall_replication_rate','prots',
+        'peptide_overall_replication_rate','prots',
             'pre_homology_accessions','pi','mw']
 
 DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
@@ -44,8 +44,11 @@ H, rejected = G.get_minimal_graph()
 pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
 DDinH['pepgr'] = DDinH.index.map(pep2pepgr)
+pep_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+# TO THE INTENSITIES!!!
 
-peps_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+debug = True
+
 prots_min_I, prots_I, prots_max_I = get_prot_intensities(H, peps_I)
 prot_info = summarize_prots(H, fastas, prots.pep_coverage)
 prots_I_nice = prettify_protein_informations(prots_I, prot_info)

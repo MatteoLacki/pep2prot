@@ -3,25 +3,26 @@ from .min_cover import greedy_minimal_cover
 
 
 class ProtPepGraph(BiGraph):
-    def prots(self):
+    def prots(self, deg=None):
         """Iterate proteins."""
-        yield from self.A()
+        yield from self.A(deg)
     proteins = prots
     
-    def prot_cnt(self):
-        return self.A_cnt()
+    def prot_cnt(self, deg=None):
+        return self.A_cnt(deg)
 
-    def peps(self):
+    def peps(self, deg=None):
         """Iterate peptides."""
-        yield from self.B()
+        yield from self.B(deg)
     peptides = peps
 
-    def pep_cnt(self):
-        return self.B_cnt()
+    def pep_cnt(self, deg=None):
+        return self.B_cnt(deg)
 
     def prot_pep_pairs(self):
         """Iterate potential peptide-protein explanations."""
         yield from self.AB()
+    protein_peptide_pairs = prot_pep_pairs
 
     def __repr__(self):
         return "ProtPepGraph(proteins {} petpides {} links {})".format(*self.nodes_cnt(), len(self.edges))
@@ -35,8 +36,8 @@ class ProtPepGraph(BiGraph):
             Tuple: a tuple with lonely peptide and prots, and a tuple of peptides not belonging to unsupproted proteins and these proteins.    
         """
         # removing pairs r-p, where both r and p have no other neighbors
-        lonely_peps = {p for p in self.peps() if self.degree(p) == 0}
-        lonely_prots = {p for p in self.prots() if self.degree(p) == 0}
+        lonely_peps = set(self.peps(deg=0))
+        lonely_prots = set(self.prots(deg=0))
         self.remove_nodes_from(lonely_peps)
         self.remove_nodes_from(lonely_prots)
 
@@ -66,10 +67,10 @@ class ProtPepGraph(BiGraph):
         it = 0
         while it < max_iter:
             cover = greedy_minimal_cover(G)
-            rejected = {rg for rg in G.prots() if rg not in cover}
-            beckham_prot_groups.update(rejected)
+            noncovering = {rg for rg in G.prots() if rg not in cover}
+            beckham_prot_groups.update(noncovering)
             # removing beckham prots will not leave any peptides without neighbors, as they are covered by min_prot_cover.
-            G.remove_nodes_from(rejected)
+            G.remove_nodes_from(noncovering)
             # after removing nodes from cover, some covered nodes might have lost proteins that discerned them from others.
             # Otherwise said, they will now have the same neighboring protein groups as some other peptide groups, which
             # was impossible before. To fix it, we have to reform the groups.
@@ -83,8 +84,13 @@ class ProtPepGraph(BiGraph):
         return G, beckham_prot_groups
 
     def pop_unsupported(self):
+        """Pop some of the unsupported proteins.
+
+        Remove from the graph (and yield) proteins that do not have unique peptides
+        and for any peptide they have there is a protein that has unique peptides.
+        Later in the code, these are reffered to as inuprots surrounded by uniprots."""
         while True:
-            supported = {r for p in self.peps() if self.degree(p)==1 for r in self[p]}
+            supported = {r for p in self.peps(deg=1) for r in self[p]}
             shared_peps = {p for r in supported for p in self[r] if self.degree(p) > 1}
             if shared_peps:
                 unsupported = {r for r in self.prots() if all(p in shared_peps for p in self[r])}
@@ -106,11 +112,12 @@ class ProtPepGraph(BiGraph):
         """
         H = self.form_groups()
         cover = greedy_minimal_cover(H)
-        rejected = {r for r in H.prots() if r not in cover}
-        H.remove_nodes_from(rejected)
+        noncovering = {r for r in H.prots() if r not in cover}
+        H.remove_nodes_from(noncovering)
         H = H.form_groups(merging_merged=True)
-        rejected.update(H.pop_unsupported())
-        return H, rejected
+        noncovering.update(H.pop_unsupported())
+        H = H.form_groups(merging_merged=True)
+        return H, noncovering
 
 
 # TODO: update this test.

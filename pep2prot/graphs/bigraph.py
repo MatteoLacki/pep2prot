@@ -26,14 +26,14 @@ class BiGraph(nx.Graph):
                 self.add_node(z, A=False)
                 self.add_edge(a,z)
 
-    def A(self):
+    def A(self, deg=None):
         for n in self:
-            if self.node[n]['A']:
+            if self.node[n]['A'] and (deg is None or self.degree(n) == deg):
                 yield n
 
-    def B(self):
+    def B(self, deg=None):
         for n in self:
-            if not self.node[n]['A']:
+            if not self.node[n]['A'] and (deg is None or self.degree(n) == deg):
                 yield n
 
     def add_A_node(self, node_for_adding, **attr):
@@ -67,15 +67,15 @@ class BiGraph(nx.Graph):
             i += 1
         return i, len(self) - i
 
-    def A_cnt(self):
+    def A_cnt(self, deg=None):
         i = 0
-        for a in self.A():
+        for a in self.A(deg):
             i += 1
         return i
 
-    def B_cnt(self):
+    def B_cnt(self, deg=None):
         i = 0
-        for b in self.B():
+        for b in self.B(deg):
             i += 1
         return i
 
