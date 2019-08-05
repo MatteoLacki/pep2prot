@@ -11,11 +11,13 @@ from pathlib import Path
 from collections import Counter
 import networkx as nx
 import matplotlib.pyplot as plt
+from plotnine import *
 
 from pep2prot.read import read_isoquant_peptide_report, read_fastas
 from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
 from pep2prot.graphs.pep_prot_graph import ProtPepGraph
 from pep2prot.intensities import get_prot_intensities
+from pep2prot.df_ops import sum_top
 from pep2prot.postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
 
 test_data = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
@@ -35,7 +37,7 @@ uni_cols = ['peptide_overall_max_score','peptide_fdr_level',
             'pre_homology_accessions','pi','mw']
 
 DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
-assert np.all(DD.groupby(['pep','prots']).size() == 1), "Some peptides are still across different clusters."
+assert DD.index.is_unique, "Some peptides are still across different clusters."
 
 G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
 lonely, unsupported = G.remove_lonely_and_unsupported(2)
@@ -44,22 +46,73 @@ H, rejected = G.get_minimal_graph()
 pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
 DDinH['pepgr'] = DDinH.index.map(pep2pepgr)
-pep_I = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 
-prot_minI, prot_I, prot_maxI = get_prot_intensities(H, pep_I)
-prot_info = summarize_prots(H, fastas, prots.pep_coverage)
+# implementing the max three peptide rule: accross runs and inside runs
+pep_I = DDinH[I_cols]
 
-plt.hist(prot_info.pep_coverage, bins=100)
+# (prot_cnt, pep_cnt), pep2prot_cnt = H.nodes_cnt(), len(H.edges)
+_, Icols_cnt = pep_I.shape
+Icols = pep_I.columns
+
+pep2prot = pd.MultiIndex.from_tuples((R,p) for R,P in H.prot_pep_pairs() for p in P)
+pep2prot.names = ('prot','pep')
+pep2prot_maxI = df(index=pep2prot).join(pep_I, on='pep')
+
+prot_maxI = sum_top(pep2prot_maxI.droplevel('pep'), 3, 'prot')
+
+unipep = set(p for P in H.peps(deg=1) for p in P)
+unipep2prot_I = pep2prot_maxI[pep2prot.isin(unipep, 'pep')]
+uniprot_minI = sum_top(unipep2prot_I.droplevel('pep'), 3, 'prot')
+
+uniprot = uniprot_minI.index
+inuprot = {R for R in H.prots() if not R in uniprot}
+inuprot_noI = df(np.zeros(shape=(len(inuprot), Icols_cnt)), index=inuprot, columns=Icols)
+
+# prot = uniprot ⊔ inuprot
+prot_minI = pd.concat([uniprot_minI, inuprot_noI])
+
+def get_meds(X):
+    meds = pd.concat([X.filter(regex='HYE Mix A').median(axis=1),
+                      X.filter(regex='HYE Mix B').median(axis=1)],
+                      axis=1)
+    meds.columns = ['A', 'B']
+    return meds
+
+pep_I_old = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
+prot_minI_old, prot_I_old, prot_maxI_old = get_prot_intensities(H, pep_I_old)
+
+X = get_meds(prot_minI)
+Y = get_meds(prot_minI_old)
+X['algo'] = 'top3'
+Y['algo'] = 'all intensities'
+Z = pd.concat([X,Y])
+
+(ggplot(Z) + 
+ geom_point(aes(x='np.log(A)', y='np.log(B)-np.log(A)'), size=.2) + 
+ facet_grid('.~algo', scales='free_x') )
+
+# investigating sample-free intensity convergences
+X = prot_minI_old.filter(regex='HYE Mix A').copy()
+X.columns = ['a','b','c']
+X = pd.concat([X.a, np.log(X.b) - np.log(X.a), np.log(X.c) - np.log(X.a)], axis=1)
+X = X[X.a != 0]
+X.columns = ['a', 'b2a', 'c2a']
+plt.scatter(np.log(X.a), X.b2a, s=1)
+plt.scatter(np.log(X.a), X.c2a, s=1)
 plt.show()
 
-prot_Inice = prettify_protein_informations(prot_I, prot_info)
-prot_stats = get_stats(prot_minI, prot_I, prot_maxI)
 
-prot_Inice.columns
-any(';' in d for d in prot_Inice.description)
+X = prot_minI_old.filter(regex='HYE Mix A').copy()
+X.columns = ['a','b','c']
 
-all_prots = get_full_report(prot_minI, prot_I, prot_maxI)
-all_prots_nice = prettify_protein_informations(all_prots, prot_info)
+plt.scatter(x=np.log(X.a), y=X.std(axis=1), s=1)
+plt.show()
 
+plt.scatter(x=np.log(X.median(axis=1)), y=X.mad(axis=1), s=1)
+plt.show()
 
+(ggplot(Y) + 
+ geom_point(aes(x='np.log(A)', y='np.log(B)-np.log(A)'), size=.2) )
 
+plt.scatter(x=np.log(X.median(axis=1)), y=np.log(X.mad(axis=1)), s=1)
+plt.show()

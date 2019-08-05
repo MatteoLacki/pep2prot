@@ -5,6 +5,7 @@ from pandas import DataFrame as df
 
 debug = False
 
+
 def get_prot_intensities(H, pep_I):
     """Get intensities based on a protein-peptide graph.
 
@@ -19,6 +20,7 @@ def get_prot_intensities(H, pep_I):
     Icols = pep_I.columns
     assert pep_cnt == _, "H has {} peptides and pep_I {} peptides!".format(pep_cnt, _)
 
+    # THIS STAGE DIFFERS FOR TOP3
     pep2prot = pd.MultiIndex.from_tuples(H.prot_pep_pairs(), names=('prot','pep'))
     pep2prot_maxI = df(index=pep2prot).join(pep_I, on='pep')
     prot_maxI = pep2prot_maxI.groupby('prot').sum()
@@ -27,18 +29,18 @@ def get_prot_intensities(H, pep_I):
     assert prot_maxI.shape[0] == prot_cnt, "Row number in prot_maxI is not equal to the number of protein groups."
     assert not np.any(prot_maxI.isna()), "Missing values in the maximal intensities."
     
-    # peptides unique for one protein group
-    unipep = pd.Index(H.peps(deg=1), name='pep')
+    # peptide groups unique for one protein group
+    unipep = set(H.peps(deg=1))
 
     # intensities going from unique peptides towards their respective proteins
-    unipep2prot_I = pep2prot_maxI[pep2prot.get_level_values('pep').isin(unipep)]    
+    unipep2prot_I = pep2prot_maxI[pep2prot.isin(unipep, level='pep')] # multindex has an 'isin'
     uniprot_minI = unipep2prot_I.groupby('prot').sum()
 
     # proteins with at least one uniquely identifying peptide group
     uniprot = uniprot_minI.index
     
     # proteins that have no uniquely identifying peptides (uni backwards is inu)
-    inuprot = pd.Index((r for r in H.prots() if not r in uniprot), name='prot')
+    inuprot = {r for r in H.prots() if not r in uniprot}
     inuprot_noI = df(np.zeros(shape=(len(inuprot), Icols_cnt)), index=inuprot, columns=Icols)
 
     # prot = uniprot ⊔ inuprot

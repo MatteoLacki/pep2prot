@@ -59,7 +59,7 @@ def isoquant_peptide_report(pep_rep_path,
     if verbose:
         print('Aggregating the same peptides that ended up in different clusters.')
     DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
-    assert np.all(DD.groupby(['pep','prots']).size() == 1), "Some peptides are still across different clusters."
+    assert DD.index.is_unique, "Some peptides are still across different clusters."
 
     if verbose:
         print('Building the peptide-protein graph.')
