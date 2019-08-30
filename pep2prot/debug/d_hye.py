@@ -8,7 +8,7 @@ pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 30)#display whole column without truncation
 from pandas import DataFrame as df
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 import networkx as nx
 import matplotlib.pyplot as plt
 from plotnine import *
@@ -19,6 +19,7 @@ from pep2prot.graphs.pep_prot_graph import ProtPepGraph
 from pep2prot.intensities import get_prot_intensities
 from pep2prot.df_ops import sum_top
 from pep2prot.postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
+
 
 test_data = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 pep_rep_path = test_data/'hye_peprep.csv'
@@ -66,7 +67,12 @@ uniprot_minI = sum_top(unipep2prot_I.droplevel('pep'), 3, 'prot')
 
 uniprot = uniprot_minI.index
 inuprot = {R for R in H.prots() if not R in uniprot}
-inuprot_noI = df(np.zeros(shape=(len(inuprot), Icols_cnt)), index=inuprot, columns=Icols)
+inuprot_noI = df(np.zeros(shape=(len(inuprot), Icols_cnt)),
+                          index=inuprot,
+                          columns=Icols)
+
+
+
 
 # prot = uniprot ⊔ inuprot
 prot_minI = pd.concat([uniprot_minI, inuprot_noI])
@@ -78,17 +84,28 @@ def get_meds(X):
     meds.columns = ['A', 'B']
     return meds
 
+def get_means(X):
+    meds = pd.concat([X.filter(regex='HYE Mix A').mean(axis=1),
+                      X.filter(regex='HYE Mix B').mean(axis=1)],
+                      axis=1)
+    meds.columns = ['A', 'B']
+    return meds
+
 pep_I_old = DDinH[I_cols].groupby(pep2pepgr).sum()# peptide groups intensities
 prot_minI_old, prot_I_old, prot_maxI_old = get_prot_intensities(H, pep_I_old)
 
-X = get_meds(prot_minI)
-Y = get_meds(prot_minI_old)
+# X = get_meds(prot_minI)
+# Y = get_meds(prot_minI_old)
+X = get_means(prot_minI)
+Y = get_means(prot_minI_old)
+
 X['algo'] = 'top3'
 Y['algo'] = 'all intensities'
 Z = pd.concat([X,Y])
 
 (ggplot(Z) + 
- geom_point(aes(x='np.log(A)', y='np.log(B)-np.log(A)'), size=.2) + 
+ geom_hline(yintercept=np.log([1/2,1,4]))+
+ geom_point(aes(x='np.log(A)', y='np.log(B)-np.log(A)'), size=2) + 
  facet_grid('.~algo', scales='free_x') )
 
 # investigating sample-free intensity convergences
@@ -115,4 +132,30 @@ plt.show()
  geom_point(aes(x='np.log(A)', y='np.log(B)-np.log(A)'), size=.2) )
 
 plt.scatter(x=np.log(X.median(axis=1)), y=np.log(X.mad(axis=1)), s=1)
+plt.show()
+
+# comparing the values for plots of peptide I, rather than protein I
+A = prot_I_old.filter(regex='Mix A')
+B = prot_I_old.filter(regex='Mix B')
+A_med = A.median(axis=1)
+B_med = B.median(axis=1)
+
+p = np.linspace(50,100, 100)
+q = np.percentile(A.median(axis=1), q=p)
+# plt.plot(q,p)
+# plt.show()
+q = np.percentile(A_med, q=95)
+
+HI_prots = {r for R in A_med[A_med >= q].index for r in R}
+HI_prots_species = defaultdict(set)
+for r in HI_prots:
+    acc, species = r.split('_')
+    HI_prots_species[species].add(species)
+
+ 
+HI_peps = {p for p, R in zip(DD.index, DD.prots) if any(r in HI_prots for r in R)}
+HI_peps_I = DD.loc[HI_peps,I_cols]
+
+Z = get_means(HI_peps_I)
+plt.scatter(np.log(Z.A), np.log(Z.A)-np.log(Z.B))
 plt.show()

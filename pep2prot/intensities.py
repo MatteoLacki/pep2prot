@@ -6,12 +6,13 @@ from pandas import DataFrame as df
 debug = False
 
 
-def get_prot_intensities(H, pep_I):
+def get_prot_intensities(H, pep_I, return_weights=False):
     """Get intensities based on a protein-peptide graph.
 
     Args:
         H (ProtPepGraph): Ready protein-peptide graph.
         pep_I (pd.DataFrame): Observed intensities of individual peptides.
+        return_weights (boolean): Return weights used in the deconvolution.
     Returns:
         Minimal, deconvoluted, and maximal protein intensities.
     """
@@ -101,5 +102,8 @@ def get_prot_intensities(H, pep_I):
     assert np.all(prot_minI <= prot_I), "Some deconvoluted intensities are smaller then minimal intensities."
     assert np.all(prot_I <= prot_maxI), "Some deconvoluted intensities are larger then maximal intensities."
 
-    return prot_minI, prot_I, prot_maxI
+    if return_weights:
+        return prot_minI, prot_I, prot_maxI, weights
+    else:
+        return prot_minI, prot_I, prot_maxI
 

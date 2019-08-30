@@ -1,3 +1,5 @@
+import networkx as nx
+
 from .bigraph import BiGraph
 from .min_cover import greedy_minimal_cover
 
@@ -118,6 +120,26 @@ class ProtPepGraph(BiGraph):
         noncovering.update(H.pop_unsupported())
         H = H.form_groups(merging_merged=True)
         return H, noncovering
+
+    def draw(self, show=True, with_labels=False, simple_labels=True, node_size=10, *args, **kwds):
+        import matplotlib.pyplot as plt
+        node_colors = [('red' if self.node[n]['A'] else 'blue') for n in self]
+        if with_labels:
+            labels = {n: next(iter(n)) if simple_labels else ", ".join(n) for n in self}
+            nx.draw_networkx(self,
+                             node_color=node_colors,
+                             with_labels=True,
+                             labels=labels,
+                             node_size=node_size,
+                             *args, **kwds)
+        else:
+            nx.draw_networkx(self,
+                             node_color=node_colors,
+                             with_labels=False,
+                             node_size=node_size,
+                             *args, **kwds)
+        if show:
+            plt.show()
 
 
 # TODO: update this test.

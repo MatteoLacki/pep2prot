@@ -121,6 +121,10 @@ class BiGraph(nx.Graph):
         for cc in nx.connected_components(self):
             yield self.subgraph(cc)
 
+    def component(self, node):
+        """Get connected components containing the give node."""
+        return self.subgraph(nx.node_connected_component(self, node))
+
     def merge_nodes(self, AorB, merging_merged=False):
         """Merge nodes with the same neigbors in the other set.
 
@@ -156,6 +160,9 @@ class BiGraph(nx.Graph):
             return True
         except nx.NetworkXNoCycle:
             return False
+
+    def deg(self, *args, **kwds):
+        return self.degree(*args, **kwds)
 
     @classmethod
     def random(cls, maxA=20, maxB=40, prob=.05):
