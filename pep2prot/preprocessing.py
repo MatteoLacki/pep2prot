@@ -39,13 +39,14 @@ def preprocess_isoquant_peptide_report(D, mods_simplifier=simplify_mods):
 
 
 def get_protein_coverages(D, fastas, all_out=False):
-    """Get protein coverages.
+    """Get protein coverages
 
     Args:
         D (pd.DataFrame): Observed peptides. Indexed by peptides. Has to contain 'sequence' and 'prots' columns, with peptide sequences and sets of proteins that can explain peptides.
         fastas (pd.DataFrame): A DataFrame indexed by proteins with column prot_seq. Best, as output of read_fastas.
         all_out (boolean): Return additionally the DataFrame with protein sequences and corresponding peptide subsequences. 
-    Return:
+
+    Returns:
         pd.DataFrame with proteins and their coverages and (optionally) DataFrame with protein sequences and corresponding peptide subsequences.
     """
     X = pd.DataFrame(((p,ps,r) for p,ps,rg in zip(D.index,D.sequence,D.prots) for r in rg),

@@ -12,7 +12,7 @@ parser.add_argument("peprep", type=str, help="peptide report path")
 parser.add_argument("fasta", type=str, help="fasta file path")
 parser.add_argument("-o", "--output", type=str, help="custom output path [defaults to peptide report folder]", default='.')
 parser.add_argument("--min_pep_per_prot", type=int, help="minimum number of peptides per protein [default = 2].", default=2)
-parser.add_argument("--excel",action='store_const', const=True, default=False,
+parser.add_argument("--excel", action='store_const', const=True, default=False,
                     help="get one excel report instead of two csvs [slow]")
 parser.add_argument("--silent", action='store_const', const=True, default=False,
                     help="show no console output")

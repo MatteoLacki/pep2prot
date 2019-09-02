@@ -75,7 +75,7 @@ def isoquant_peptide_report(pep_rep_path,
 
     if verbose:
         print('Spreading intensities from peptides to proteins.')
-    prot_min_I, prot_I, prot_max_I = get_prot_intensities(H, pep_I)
+    prot_min_I, prot_I, prot_max_I, W = get_prot_intensities(H, pep_I, True)
     prot_info = summarize_prots(H, fastas, prots.pep_coverage)
     prot_I_nice = prettify_protein_informations(prot_I, prot_info)
     prot_stats = get_stats(prot_min_I, prot_I, prot_max_I)
@@ -86,7 +86,7 @@ def isoquant_peptide_report(pep_rep_path,
     all_prot_nice = prettify_protein_informations(all_prots, prot_info)
 
     if full_outcome:
-        return prot_I_nice, all_prot_nice, G, H, lonely, unsupported, rejected, prot_min_I, prot_I, prot_max_I
+        return prot_I_nice, all_prot_nice, G, H, lonely, unsupported, rejected, prot_min_I, prot_I, prot_max_I, D, W, pep_I
     else:
         return prot_I_nice, all_prot_nice
 
