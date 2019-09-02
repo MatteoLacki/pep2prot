@@ -8,41 +8,44 @@ pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 30)#display whole column without truncation
 from pandas import DataFrame as df
 from pathlib import Path
-from collections import Counter
-import networkx as nx
-import matplotlib.pyplot as plt
-from plotnine import *
 
-from pep2prot.read import read_isoquant_peptide_report, read_fastas
-from pep2prot.preprocessing import preprocess_isoquant_peptide_report, get_protein_coverages, complex_cluster_buster, simple_cluster_buster 
-from pep2prot.graphs.pep_prot_graph import ProtPepGraph
-from pep2prot.intensities import get_prot_intensities
-from pep2prot.df_ops import sum_top
-from pep2prot.postprocessing import summarize_prots, get_stats, prettify_protein_informations, get_full_report
+from pep2prot.analyse import isoquant_peptide_report
+from pep2prot.preprocessing import complex_cluster_buster
 
 test_data = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 pep_rep_path = test_data/'hye_peprep.csv'
 fastas_path = test_data/'HYE.fasta'
 cluster_buster = complex_cluster_buster
 
-D = read_isoquant_peptide_report(pep_rep_path)
-D, I_cols = preprocess_isoquant_peptide_report(D)
+prot_I_nice, all_prot_nice, G, H, lonely, unsupported, rejected, prot_min_I, prot_I, prot_max_I, D, W, pep_I = \
+ 	isoquant_peptide_report(pep_rep_path, fastas_path, verbose=True, full_outcome=True)
 
-fastas = read_fastas(fastas_path)
-observed_prots = {r for rg in D.prots for r in rg}
-assert all(r in fastas.index for r in observed_prots), "It seems that you are using a different set of fastas than the peptide annotation software before. Repent please."
-prots = get_protein_coverages(D, fastas)
-uni_cols = ['peptide_overall_max_score','peptide_fdr_level',
-        'peptide_overall_replication_rate','prots',
-            'pre_homology_accessions','pi','mw']
-
-DD = cluster_buster(D, I_cols, uni_cols) # agg same peptides in various clusters
-assert DD.index.is_unique, "Some peptides are still across different clusters."
-
-DD.index.name = 'peptide sequence'
-EE = DD[['prots'] + I_cols]
-EE.columns = [c.replace('intensity in 2019-019-0','I').replace('4','').replace('5','').replace('prots','protein') for c in EE.columns]
+D.index.name = 'peptide sequence'
+I_cols = [c for c in D.columns if "intensity in " in c]
+E = D[['prots'] + I_cols]
+E.columns = [c.replace('intensity in 2019-019-0','I').replace('4','').replace('5','').replace('prots','protein') for c in E.columns]
 
 pd.set_option('display.expand_frame_repr', True)
 pd.set_option('display.max_colwidth', 50)
-EE
+
+F = prot_I_nice[I_cols]
+F.columns = E.columns[1:]
+
+F.loc['IF5A1_HUMAN'][0:3].mean()
+F.loc['IF5A1_HUMAN'][3:6].mean()
+
+
+# T = \frac{\bar X - \bar Y}{ S \sqrt{(\frac{1}{n_X} - \frac{1}{n_Y}) }}
+# S = \sqrt{\frac{(n_X - 1)s_X^2 + (n_Y - 1)s_Y^2}{n_X + n_Y - 2}}
+p = r"/Volumes/GREEN/2019-019_HYE/2019-019 HYE neu_user designed 20190621-083010_quantification_report_Jorg.xlsx"
+J = pd.read_excel(p, skiprows=1)
+J = J.set_index('entry')
+J = J[[c.replace('intensity in ','') for c in I_cols]]
+J.isna().sum(axis=0)
+
+M = pd.read_csv(r"/Volumes/GREEN/20190719_wheat-files-for-testing-protein-inference-by-ML/2019-015_triticum-DB_user designed 20190713-160429_peptide_quantification_report.csv",
+                encoding = "ISO-8859-1")
+M = M[[c for c in M.columns if 'intensity in ' in c]]
+M.isna().sum()
+
+pd.set_option('display.expand_frame_repr', True)

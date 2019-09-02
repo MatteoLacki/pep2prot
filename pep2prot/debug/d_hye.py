@@ -44,6 +44,8 @@ G = ProtPepGraph((r,p) for p, rg in zip(DD.index, DD.prots) for r in rg)
 lonely, unsupported = G.remove_lonely_and_unsupported(2)
 H, rejected = G.get_minimal_graph()
 
+
+
 pep2pepgr = {p:pg for pg in H.peps() for p in pg}
 DDinH = DD.loc[pep2pepgr] # peps in H: no simple prot-pep pairs, no unnecessary prots?
 DDinH['pepgr'] = DDinH.index.map(pep2pepgr)
