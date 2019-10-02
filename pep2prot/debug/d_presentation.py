@@ -8,9 +8,12 @@ pd.set_option('display.max_columns', 100)
 pd.set_option('display.max_colwidth', 30)#display whole column without truncation
 from pandas import DataFrame as df
 from pathlib import Path
+import platform
 
 from pep2prot.analyse import isoquant_peptide_report
 from pep2prot.preprocessing import complex_cluster_buster
+
+
 
 test_data = Path(r"~/Projects/pep2prot/pep2prot/data").expanduser()
 pep_rep_path = test_data/'hye_peprep.csv'
@@ -43,9 +46,3 @@ J = J.set_index('entry')
 J = J[[c.replace('intensity in ','') for c in I_cols]]
 J.isna().sum(axis=0)
 
-M = pd.read_csv(r"/Volumes/GREEN/20190719_wheat-files-for-testing-protein-inference-by-ML/2019-015_triticum-DB_user designed 20190713-160429_peptide_quantification_report.csv",
-                encoding = "ISO-8859-1")
-M = M[[c for c in M.columns if 'intensity in ' in c]]
-M.isna().sum()
-
-pd.set_option('display.expand_frame_repr', True)
