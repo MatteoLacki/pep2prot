@@ -1,21 +1,54 @@
 #!/usr/bin/env python3
 import argparse
-import pandas as pd
-from   pathlib import Path
+from pathlib import Path
+from types import SimpleNamespace
 
+import pandas as pd
 from pep2prot.analyse import isoquant_peptide_report
 
 debug = False
+_fold = Path("/home/matteo/Projects/protein_inference/pep2prot/data")
+args = SimpleNamespace(
+    peprep=_fold / "hye_peprep.csv",
+    fasta=_fold / "HYE.fasta",
+    min_pep_per_prot=3,
+    excel=False,
+    silent=False,
+    output="/tmp/test.csv",
+)
 
-parser = argparse.ArgumentParser(description='Turn an IsoQuant peptide report into a protein report. Like a BONZO.')
+parser = argparse.ArgumentParser(
+    description="Turn an IsoQuant peptide report into a protein report. Like a BONZO."
+)
 parser.add_argument("peprep", type=str, help="peptide report path")
 parser.add_argument("fasta", type=str, help="fasta file path")
-parser.add_argument("-o", "--output", type=str, help="custom output path [defaults to peptide report folder]", default='.')
-parser.add_argument("--min_pep_per_prot", type=int, help="minimum number of peptides per protein [default = 2].", default=2)
-parser.add_argument("--excel", action='store_const', const=True, default=False,
-                    help="get one excel report instead of two csvs [slow]")
-parser.add_argument("--silent", action='store_const', const=True, default=False,
-                    help="show no console output")
+parser.add_argument(
+    "-o",
+    "--output",
+    type=str,
+    help="custom output path [defaults to peptide report folder]",
+    default=".",
+)
+parser.add_argument(
+    "--min_pep_per_prot",
+    type=int,
+    help="minimum number of peptides per protein [default = 2].",
+    default=2,
+)
+parser.add_argument(
+    "--excel",
+    action="store_const",
+    const=True,
+    default=False,
+    help="get one excel report instead of two csvs [slow]",
+)
+parser.add_argument(
+    "--silent",
+    action="store_const",
+    const=True,
+    default=False,
+    help="show no console output",
+)
 
 args = parser.parse_args()
 if debug:
@@ -23,11 +56,11 @@ if debug:
 
 fasta = Path(args.fasta).expanduser()
 peprep = Path(args.peprep).expanduser()
-if 'fas' not in fasta.suffix:
+if "fas" not in fasta.suffix:
     fasta, peprep = peprep, fasta
 
 output_path = args.output
-if output_path == '.':
+if output_path == ".":
     output_path = peprep.parent
 else:
     output_path = Path(output_path).expanduser()
@@ -36,24 +69,27 @@ else:
 # min_cover_max_iter = args.min_cover_max_iter if args.min_cover_max_iter != -1 else float('inf')
 
 if not args.silent:
-    print('Welcome weary scientist!')
-    print('Relax, as we do the job for you.')
+    print("Welcome weary scientist!")
+    print("Relax, as we do the job for you.")
     print()
 
-prots_I_nice, all_prots_nice = isoquant_peptide_report(peprep,
-                                                       fasta,
-                                                       args.min_pep_per_prot,
-                                                       not args.silent)
+prots_I_nice, all_prots_nice = isoquant_peptide_report(
+    peprep, fasta, args.min_pep_per_prot, not args.silent
+)
 
-output_file = peprep.stem.replace('peptide', 'protein') if 'peptide' in peprep.stem else 'protein_report'
+output_file = (
+    peprep.stem.replace("peptide", "protein")
+    if "peptide" in peprep.stem
+    else "protein_report"
+)
 if args.excel:
     output_file += ".xlsx"
-    with pd.ExcelWriter(output_path/output_file) as writer:
-        prots_I_nice.to_excel(writer, sheet_name='report')
-        all_prots_nice.to_excel(writer, sheet_name='extended report')    
+    with pd.ExcelWriter(output_path / output_file) as writer:
+        prots_I_nice.to_excel(writer, sheet_name="report")
+        all_prots_nice.to_excel(writer, sheet_name="extended report")
 else:
-    prots_I_nice.to_csv(output_path/(output_file+".csv"), sep=';')
-    all_prots_nice.to_csv(output_path/(output_file+"_full.csv"), sep=';')
+    prots_I_nice.to_csv(output_path / (output_file + ".csv"), sep=";")
+    all_prots_nice.to_csv(output_path / (output_file + "_full.csv"), sep=";")
 
 if not args.silent:
     print()
