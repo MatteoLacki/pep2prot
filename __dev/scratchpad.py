@@ -254,6 +254,63 @@ edges = sparsify_adjacency_martrix(
     reps_adjacency_matrix, protein_groups_representatives
 )
 
+# only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
+pep_prot_graph = edges_to_bipartite_graph(invert_peptide_indices(edges))
+
+
+for cc in nx.connected_components(pep_prot_graph):
+    if len(cc) > 10:
+        print(cc)
+        break
+
+
+# TODO: implement gready approach for this
+CC = pep_prot_graph.subgraph(cc).edges
+
+
+graph_nodes_to_proteins_and_peptides_indices_lists(cc)
+cc
+
+
+# the number of iterations will be stupid if we don't do it on multiple connected components.
+
+
+Counter(prot_id for prot_id, pep_id in edges)
+peps_to_cover = set(pep_id for prot_id, pep_id in edges)
+
+
+def greedy_minimal_cover(G):
+    G = G.copy()
+    cover = set([])
+    if G.prot_cnt() > 1:
+        cover.update(
+            r for p in G.peps() if G.degree(p) == 1 for r in G[p]
+        )  # supported proteins
+        G.remove_nodes_from(
+            [p for r in cover for p in G[r]]
+        )  # remove peptides they cover
+        G.remove_nodes_from(cover)  # remove supported proteins
+        G.remove_nodes_from(
+            [r for r in G.prots() if G.degree(r) == 0]
+        )  # remove unsupported prots
+        if G.prot_cnt() > 1:
+            max_cover_degree = max(G.degree(r) for r in G.prots())
+            max_degree_nodes = {r for r in G.prots() if G.degree(r) == max_cover_degree}
+            max_degree_cover = {p for r in max_degree_nodes for p in G[r]}
+            G.remove_nodes_from(max_degree_nodes)
+            G.remove_nodes_from(max_degree_cover)
+            G.remove_nodes_from(
+                [r for r in G.prots() if G.degree(r) == 0]
+            )  # remove unsupported
+            cover.update(max_degree_nodes)
+            for C in G.components():
+                cover.update(greedy_minimal_cover(C))  # recursive move
+        return cover
+    else:
+        print(G)
+        print(next(G.prots()))
+        return {next(G.prots())}  # the only protein left
+
 
 # OK: now need to get the edges
 # edges = invert_peptide_indices(edges)
