@@ -1,0 +1,16 @@
+certifi==2024.7.4
+charset-normalizer==3.3.2
+furious-fastas==0.1.5
+idna==3.7
+llvmlite==0.43.0
+networkx==3.3
+numba==0.60.0
+numpy==2.0.1
+pandas==2.2.2
+-e git+ssh://git@github.com/MatteoLacki/pep2prot.git@f75ba0532cb938a17b28bcb34010d38d2eb1c504#egg=pep2prot
+python-dateutil==2.9.0.post0
+pytz==2024.1
+requests==2.32.3
+six==1.16.0
+tzdata==2024.1
+urllib3==2.2.2

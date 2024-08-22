@@ -40,3 +40,12 @@ group
 2521    [20568]         20568           23  [sp|P00925|ENO2_YEAST_CONTA]                  1  [21, 63, 110, 147, 251, 367, 598, 646, 668, 68...
 2522    [20569]         20569            9  [sp|P49065|ALBU_RABIT_CONTA]                  1  [618, 1710, 1816, 1893, 2334, 2525, 2573, 2891...
 ```
+
+# Installation
+
+On Linux.
+```
+python3 -m venv ve_pep2prot
+source ve_pep2prot/bin/activate
+pip install -r requirements.txt
+```
