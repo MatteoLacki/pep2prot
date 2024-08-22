@@ -193,7 +193,10 @@ def graph_is_lexicographically_sorted(edges: list[int, int]) -> bool:
     return True
 
 
-def get_protein_group_cover(edges: list[tuple[int, int]]) -> list[int]:
+def get_protein_group_cover(
+    edges: list[tuple[int, int]],
+    cpu_cnt: int = mp.cpu_count(),
+) -> list[int]:
     # only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
     pep_prot_graph = nx.Graph(invert_peptide_indices(edges))
     pep_prot_subgraphs = [
