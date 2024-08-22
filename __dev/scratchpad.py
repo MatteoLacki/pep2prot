@@ -45,29 +45,38 @@ ms2rescore_input["raw_sequence"] = ms2rescore_input.peptide.map(
 peptide_report = ms2rescore_input
 
 
-raw_sequences = list(set(ms2rescore_input["raw_sequence"]))
-adjacency_matrix = get_adjacency_matrix([f.sequence for f in fastas], raw_sequences)
-peptides_per_protein_cnt = adjacency_matrix.sum(axis=1)
-protein_groups = get_protein_groups(np.packbits(adjacency_matrix, axis=-1))
+peptides = list(set(ms2rescore_input["raw_sequence"]))
+proteins = pd.DataFrame({"sequence": [f.sequence for f in fastas]})
+proteins.index.name = "prot_id"
+adjacency_matrix = get_adjacency_matrix(list(proteins.sequence), peptides)
+proteins["peptide_cnt"] = adjacency_matrix.sum(axis=1)
+proteins["group"] = get_protein_groups(np.packbits(adjacency_matrix, axis=-1))
 assert check_protein_groups_are_OK(
-    protein_groups, adjacency_matrix
+    proteins.group.to_numpy(),
+    adjacency_matrix,
 ), "Some proteins in the same protein group do not share the same peptides (pattern of 0s and 1s differs)."
 
-proteins_with_enough_peptides = np.nonzero(
-    peptides_per_protein_cnt >= min_number_of_peptides
-)[0]
-protein_groups_representatives = np.sort(np.unique(proteins_with_enough_peptides))
-reps_adjacency_matrix = adjacency_matrix[protein_groups_representatives]
+proteins_with_enough_peptides = proteins[proteins.peptide_cnt >= min_number_of_peptides]
 
+# this is wrong! it should be that the groups should dictate what goes in.
+# proteins.group[proteins.peptide_cnt >= min_number_of_peptides]
+
+protein_groups_representatives = (
+    proteins_with_enough_peptides.reset_index().groupby("group").first()
+)
+representitives_adjacency_matrix = adjacency_matrix[
+    protein_groups_representatives.prot_id
+]
 assert np.all(
-    peptides_per_protein_cnt[protein_groups_representatives]
-    == reps_adjacency_matrix.sum(axis=1)
+    protein_groups_representatives.peptide_cnt
+    == representitives_adjacency_matrix.sum(axis=1)
 ), "Quality check failed."
 
 prot_pep_edges = sparsify_adjacency_martrix(
-    reps_adjacency_matrix, protein_groups_representatives
+    representitives_adjacency_matrix, protein_groups_representatives.prot_id.to_numpy()
 )
 protein_group_cover = get_protein_group_cover(prot_pep_edges, cpu_cnt=cpu_cnt)
+
 
 # comment: of course, merging peptides makes absolutely no sense in terms of a set cover. So we are right not to do so.
 # what now?
