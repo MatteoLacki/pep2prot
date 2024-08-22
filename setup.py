@@ -23,9 +23,9 @@ setup(
     ],
     install_requires=[
         "numpy",
-        "networkx",
+        "networkx",  # TODO: try to get rid off
         "pandas",
-        "furious_fastas",
+        "furious_fastas",  # TODO: only need a fasta sequence reader really.
         "numba",
     ],
     # include_package_data=True,

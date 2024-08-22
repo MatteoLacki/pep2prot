@@ -68,3 +68,11 @@ prot_pep_edges = sparsify_adjacency_martrix(
     reps_adjacency_matrix, protein_groups_representatives
 )
 protein_group_cover = get_protein_group_cover(prot_pep_edges, cpu_cnt=cpu_cnt)
+
+# comment: of course, merging peptides makes absolutely no sense in terms of a set cover. So we are right not to do so.
+# what now?
+# * Missing some form of reporting: for each peptide get a
+# * More adapters for different peptide reports
+# * Add the q-value calculations as preprocessing:
+#   * we need ion level ones
+# *
