@@ -8,7 +8,9 @@ import networkx as nx
 import numba
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 
+from pep2prot.misc import asserting_unique
 from pep2prot.numpy_ops import check_arrays_equal, check_vecs_the_same
 
 
@@ -43,7 +45,7 @@ def faster_nonzero(adjacency_matrix):
 
 
 @numba.njit
-def sparsify_adjacency_martrix(
+def sparsify_adjacency_matrix(
     adjacency_matrix: npt.NDArray,
     protein_groups_representatives: npt.NDArray,
 ) -> list[tuple[int, int]]:
@@ -193,10 +195,10 @@ def graph_is_lexicographically_sorted(edges: list[int, int]) -> bool:
     return True
 
 
-def get_protein_group_cover(
+def get_protein_group_covers(
     edges: list[tuple[int, int]],
     cpu_cnt: int = mp.cpu_count(),
-) -> list[int]:
+) -> list[list[int]]:
     # only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
     pep_prot_graph = nx.Graph(invert_peptide_indices(edges))
     pep_prot_subgraphs = [
@@ -206,7 +208,96 @@ def get_protein_group_cover(
     with mp.Pool(cpu_cnt) as pool:
         covers = list(pool.map(get_protein_group_cover_greadily, pep_prot_subgraphs))
 
-    cover = [prot_id for cover in covers for prot_id in cover]
-    cover.sort()
+    return covers
 
-    return cover
+
+def get_minimal_protein_group_coverage(
+    peptides: list[str],
+    fastas: list[tuple[str, str]],
+    min_number_of_peptides: int = 3,
+    cpu_cnt: int = mp.cpu_count(),
+) -> pd.DataFrame:
+    """
+    Get the approximate minimal protein group cover of submitted peptides.
+
+    Arguments:
+        peptide_report (list[str]): A list of found peptide sequences.
+        fastas (list[tuple[str,str]]): A list of tuples with header and protein sequence each.
+        min_number_of_peptides (int): Minimal number of peptides per protein to be even worthy of being considered a cover.
+        cpu_cnt (int): Number of workers in a multiprocessing Pool to be used.
+
+    Returns:
+        pd.DataFrame: A table containing protein groups in the greadily approximated minimal protein group cover.
+    """
+    protein_sequences = [sequence for header, sequence in fastas]
+    proteins = pd.DataFrame({"header": [header for header, sequence in fastas]})
+    proteins.index.name = "prot_id"
+    adjacency_matrix = get_adjacency_matrix(protein_sequences, peptides)
+    proteins["peptide_cnt"] = adjacency_matrix.sum(axis=1)
+    # optimization: first filter by peptide counts first.
+    proteins["group"] = get_protein_groups(np.packbits(adjacency_matrix, axis=-1))
+    assert check_protein_groups_are_OK(
+        proteins.group.to_numpy(),
+        adjacency_matrix,
+    ), "Some proteins in the same protein group do not share the same peptides (pattern of 0s and 1s differs)."
+    proteins_with_enough_peptides = proteins[
+        proteins.peptide_cnt >= min_number_of_peptides
+    ]
+    protein_groups = (
+        proteins_with_enough_peptides.reset_index()
+        .groupby("group")
+        .aggregate(
+            {
+                "prot_id": [
+                    list,
+                    "min",
+                ],
+                "peptide_cnt": asserting_unique,
+                "header": list,
+                "group": len,
+            }
+        )
+    )
+    protein_groups.columns = [
+        "prot_idxs",
+        "repr_prot_id",
+        "peptide_cnt",
+        "accessions",
+        "prot_in_group_cnt",
+    ]
+
+    PG_adjmat = adjacency_matrix[protein_groups.repr_prot_id.to_numpy()]
+    assert np.all(
+        protein_groups.peptide_cnt == PG_adjmat.sum(axis=1)
+    ), "Quality check failed."
+
+    prot_pep_edges = sparsify_adjacency_matrix(
+        PG_adjmat, protein_groups.repr_prot_id.to_numpy()
+    )
+    protein_representatives_covers = get_protein_group_covers(
+        prot_pep_edges, cpu_cnt=cpu_cnt
+    )
+
+    PG_covering_connected_component_dist = Counter(
+        map(len, protein_representatives_covers)
+    )
+    protein_representatives_cover = {
+        prot_id for cover in protein_representatives_covers for prot_id in cover
+    }
+    protein_groups = protein_groups[
+        protein_groups.repr_prot_id.isin(protein_representatives_cover)
+    ].copy()
+
+    protein_groups["pep_ids"] = protein_groups.repr_prot_id.map(
+        pd.DataFrame(sorted(prot_pep_edges), columns=["prot_id", "pep_id"])
+        .groupby("prot_id")
+        .aggregate(dict(pep_id=list))
+        .pep_id
+    )
+
+    assert all(
+        pep_cnt == len(pep_ids)
+        for pep_cnt, pep_ids in zip(protein_groups.peptide_cnt, protein_groups.pep_ids)
+    ), "Some peptide groups had different number of peptides than anticipated."
+
+    return protein_groups
