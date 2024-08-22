@@ -12,190 +12,11 @@ import numpy.typing as npt
 import pandas as pd
 from networkx.algorithms import bipartite
 
-
-class SimpleReplace:
-    def __init__(self, pattern: str = r"\[.*?\]"):
-        self._pattern = re.compile(pattern)
-
-    def apply(self, string: str, withwhat: str = ""):
-        return re.sub(self._pattern, withwhat, string)
+from pep2prot.graph_ops import get_adjacency_matrix
+from pep2prot.readers import SimpleReplace
 
 
-@numba.njit(parallel=True)
-def get_adjacency_matrix(
-    strings: list[str], substrings: list[str], _padding: int = 64
-) -> npt.NDArray:
-    """
-    Get the adjacency matrix for the problem.
-    It is padded to the right with 0s.
-    """
-    assert _padding in (32, 64), "Our code works on 32 and 64 bit architectures."
-    div, mod = np.divmod(len(substrings), _padding)
-    res = np.zeros(
-        shape=(
-            len(strings),
-            (div + (mod > 0)) * _padding,
-        ),
-        dtype=np.bool_,
-    )
-    for string_id in numba.prange(len(strings)):
-        for substring_id, substring in enumerate(substrings):
-            res[string_id, substring_id] = substring in strings[string_id]
-    return res
-
-
-@numba.njit
-def faster_nonzero(adjacency_matrix):
-    return np.nonzero(adjacency_matrix)
-
-
-@numba.njit
-def sparsify_adjacency_martrix(
-    adjacency_matrix: npt.NDArray,
-    protein_groups_representatives: npt.NDArray,
-) -> list[tuple[int, int]]:
-    return [
-        (protein_groups_representatives[i], j)
-        for i, j in zip(*faster_nonzero(adjacency_matrix))
-    ]
-
-
-@numba.njit
-def invert_peptide_indices(edges):
-    """
-    Stupid networkx won't distinguish two sets of nodes.
-    So we take peptide_id -> -1-peptide_id
-    """
-    return [(prot_id, -1 - pep_id) for prot_id, pep_id in edges]
-
-
-def edges_to_bipartite_graph(edges: list[tuple[int, int]]) -> nx.Graph:
-    prots = set()
-    peps = set()
-    for prot, pep in edges:
-        prots.add(prot)
-        peps.add(pep)
-    G = nx.Graph()
-    G.add_nodes_from(list(prots), bipartite=0)
-    G.add_nodes_from(list(peps), bipartite=1)
-    G.add_edges_from(edges)
-    return G
-
-
-@numba.njit
-def graph_nodes_to_proteins_and_peptides_indices_lists(
-    graph_nodes,
-) -> tuple[list[int], list[int]]:
-    prot_rows = []
-    pep_cols = []
-    for node in graph_nodes:
-        if node < 0:
-            pep_cols.append(-node - 1)
-        else:
-            prot_rows.append(node)
-    pep_cols.sort()
-    prot_rows.sort()
-    return prot_rows, pep_cols
-
-
-# not necessary
-@numba.njit
-def get_subadjacency_matrix(
-    adjacency_matrix: npt.NDArray, prot_rows: list[int], pep_cols: list[int]
-) -> npt.NDArray:
-    res = np.zeros(shape=(len(prot_rows), len(pep_cols)), dtype=np.bool_)
-    for i, prot_id in enumerate(prot_rows):
-        for j, pep_id in enumerate(pep_cols):
-            res[i, j] = adjacency_matrix[prot_id, pep_id]
-    return res
-
-
-# it seems we cannot do it in numba this way.
-def get_row_sorting_order(matrix):
-    assert len(matrix.shape) == 2, "Wrong dimension: expecting 2D numpy array."
-    return np.argsort(
-        matrix.view([("", matrix.dtype)] * matrix.shape[1]), axis=0
-    ).ravel()
-
-
-@numba.njit
-def check_arrays_equal(a, b):
-    assert len(a) == len(b)
-    for i in range(len(a)):
-        if a[i] != b[i]:
-            return False
-    return True
-
-
-@numba.njit
-def group_rows(rows, row_order):
-    """Collect rows that are the same in the lexicographical order.
-
-    Returns:
-        np.array: An assignment of row_order indices into groups starting from 0 onwards.
-    """
-    groups = np.empty(shape=row_order.shape, dtype=np.uint32)
-    groups[0] = 0
-    current_group = 0
-    for i in range(1, len(row_order)):
-        current_group += not check_arrays_equal(
-            rows[row_order[i]],
-            rows[row_order[i - 1]],
-        )
-        groups[i] = current_group
-    return groups
-
-
-def get_dtype_and_its_bits():
-    for x in (32, 64):
-        if str(x) in str(np.uintp):
-            return np.uintp, x
-
-
-@numba.njit
-def simplify_groups(xx, yy):
-    mapping = {}
-    result = np.empty(dtype=np.uint32, shape=len(xx))
-    i = 0
-    for j, (x, y) in enumerate(zip(xx, yy)):
-        if (x, y) not in mapping:
-            mapping[(x, y)] = i
-            i += 1
-        result[j] = mapping[(x, y)]
-    return result
-
-
-@numba.njit
-def get_groups(group_counters):
-    partial_groups = group_counters[:, 0].copy().astype(np.uint32)
-    for j in range(1, group_counters.shape[1]):
-        partial_groups = simplify_groups(partial_groups, group_counters[:, j])
-    return partial_groups
-
-
-@numba.njit
-def check_vecs_the_same(array):
-    if len(array) <= 1:
-        return True
-    prev = array[0]
-    for i in range(len(array)):
-        if not np.all(prev == array[i]):
-            return False
-        prev = array[i]
-    return True
-
-
-@numba.njit
-def check_groups_are_OK(protein_groups, adjacency_matrix):
-    """For testing if the groups corresponding to an adjacency matrix are good."""
-    for i in range(max(protein_groups)):
-        W = adjacency_matrix[protein_groups == i]
-        if not check_vecs_the_same(W):
-            return False
-    return True
-
-
-def max_degree_node(bipartite_graph) -> tuple[int, int]:
+def max_degree_node(bipartite_graph: nx.Graph) -> tuple[int, int]:
     if len(bipartite_graph) == 0:
         return 0
     degree = -1
@@ -225,7 +46,7 @@ def get_protein_group_cover_greadily(bipartite_graph: nx.Graph) -> list[int]:
     return cover
 
 
-def graph_is_lexicographically_sorted(edges):
+def graph_is_lexicographically_sorted(edges: list[int, int]) -> bool:
     a_prev = -inf
     b_prev = -inf
     for a, b in edges:
@@ -287,7 +108,7 @@ raw_sequences = list(set(ms2rescore_input["raw_sequence"]))
 adjacency_matrix = get_adjacency_matrix([f.sequence for f in fastas], raw_sequences)
 
 peptides_per_protein_cnt = adjacency_matrix.sum(axis=1)
-protein_groups = get_groups(np.packbits(adjacency_matrix, axis=-1))
+protein_groups = get_protein_groups(np.packbits(adjacency_matrix, axis=-1))
 assert check_groups_are_OK(protein_groups, adjacency_matrix)
 
 proteins_with_enough_peptides = np.nonzero(
