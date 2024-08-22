@@ -1,4 +1,5 @@
 import math
+import multiprocessing as mp
 import re
 from collections import Counter
 from math import inf
@@ -221,8 +222,66 @@ def check_groups_are_OK(protein_groups, adjacency_matrix):
     return True
 
 
+def max_degree_node(bipartite_graph) -> tuple[int, int]:
+    if len(bipartite_graph) == 0:
+        return 0
+    degree = -1
+    most_covering_node = -1
+    for node in bipartite_graph.nodes:
+        if node >= 0:
+            node_deg = nx.degree(bipartite_graph, node)
+            if node_deg >= degree:
+                degree = node_deg
+                most_covering_node = node
+    assert most_covering_node != -1, "There were no proteins in the graph."
+    return most_covering_node, degree
+
+
+def get_protein_group_cover_greadily(bipartite_graph: nx.Graph) -> list[int]:
+    cover = []
+    peptides_to_cover = sum(n < 0 for n in bipartite_graph.nodes)
+    while peptides_to_cover > 0:
+        prot_id, degree = max_degree_node(bipartite_graph)
+        cover.append(prot_id)
+        peptides_to_cover -= degree
+        for pep_id in list(bipartite_graph[prot_id]):
+            bipartite_graph.remove_node(pep_id)
+        bipartite_graph.remove_node(prot_id)
+
+    assert len(bipartite_graph.edges) == 0, "Graph still has some edges which is fishy."
+    return cover
+
+
+def graph_is_lexicographically_sorted(edges):
+    a_prev = -inf
+    b_prev = -inf
+    for a, b in edges:
+        if a < a_prev or (a == a_prev and b < b_prev):
+            return False
+        a_prev = a
+        b_prev = b
+    return True
+
+
+def get_protein_group_cover(edges: list[tuple[int, int]]) -> list[int]:
+    # only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
+    pep_prot_graph = nx.Graph(invert_peptide_indices(edges))
+    pep_prot_subgraphs = [
+        pep_prot_graph.subgraph(cc).copy()
+        for cc in nx.connected_components(pep_prot_graph)
+    ]
+    with mp.Pool(cpu_cnt) as pool:
+        covers = list(pool.map(get_protein_group_cover_greadily, pep_prot_subgraphs))
+
+    cover = [prot_id for cover in covers for prot_id in cover]
+    cover.sort()
+
+    return cover
+
+
 # THE AMOK OF SIMPLICITY
 min_number_of_peptides = 3
+cpu_cnt = mp.cpu_count()
 
 mods_bracket_anihilator = SimpleReplace()
 ms2rescore_input["raw_sequence"] = ms2rescore_input.peptide.map(
@@ -254,150 +313,8 @@ edges = sparsify_adjacency_martrix(
     reps_adjacency_matrix, protein_groups_representatives
 )
 
-# only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
-pep_prot_graph = edges_to_bipartite_graph(invert_peptide_indices(edges))
 
-
-for cc in nx.connected_components(pep_prot_graph):
-    if len(cc) > 10:
-        print(cc)
-        break
-
-
-# TODO: implement gready approach for this
-CC = pep_prot_graph.subgraph(cc).edges
-
-
-graph_nodes_to_proteins_and_peptides_indices_lists(cc)
-cc
-
-
-# the number of iterations will be stupid if we don't do it on multiple connected components.
-
-
-Counter(prot_id for prot_id, pep_id in edges)
-peps_to_cover = set(pep_id for prot_id, pep_id in edges)
-
-
-def greedy_minimal_cover(G):
-    G = G.copy()
-    cover = set([])
-    if G.prot_cnt() > 1:
-        cover.update(
-            r for p in G.peps() if G.degree(p) == 1 for r in G[p]
-        )  # supported proteins
-        G.remove_nodes_from(
-            [p for r in cover for p in G[r]]
-        )  # remove peptides they cover
-        G.remove_nodes_from(cover)  # remove supported proteins
-        G.remove_nodes_from(
-            [r for r in G.prots() if G.degree(r) == 0]
-        )  # remove unsupported prots
-        if G.prot_cnt() > 1:
-            max_cover_degree = max(G.degree(r) for r in G.prots())
-            max_degree_nodes = {r for r in G.prots() if G.degree(r) == max_cover_degree}
-            max_degree_cover = {p for r in max_degree_nodes for p in G[r]}
-            G.remove_nodes_from(max_degree_nodes)
-            G.remove_nodes_from(max_degree_cover)
-            G.remove_nodes_from(
-                [r for r in G.prots() if G.degree(r) == 0]
-            )  # remove unsupported
-            cover.update(max_degree_nodes)
-            for C in G.components():
-                cover.update(greedy_minimal_cover(C))  # recursive move
-        return cover
-    else:
-        print(G)
-        print(next(G.prots()))
-        return {next(G.prots())}  # the only protein left
-
-
-# OK: now need to get the edges
-# edges = invert_peptide_indices(edges)
-# pep_prot_graph = edges_to_bipartite_graph(edges)
-
-
-# for cc in nx.connected_components(pep_prot_graph):
-#     if len(cc) > 10:
-#         print(cc)
-#         break
-
-
-nx.number_connected_components(pep_prot_graph)
-
-
-graph_nodes = cc
-prot_idxs, pep_idxs = graph_nodes_to_proteins_and_peptides_indices_lists(graph_nodes)
-subadjacency_matrix = get_subadjacency_matrix(adjacency_matrix, prot_idxs, pep_idxs)
-
-
-row_order = get_row_sorting_order(subadjacency_matrix)
-
-group_rows(subadjacency_matrix, row_order)
-subadjacency_matrix[get_row_sorting_order(subadjacency_matrix)].astype(int)
-
-# TODO: OK, now I have the stupid assignments.
-# What I need now is to combine indices and repeat the procedure on peptides (or not?)
-# Likely not, depends on how the coverage works.
-# Need also to implement some multiprocessing to do all of this? not really. only last step likely will be necessary.
-
-
-def graph_is_lexicographically_sorted(edges):
-    a_prev = -inf
-    b_prev = -inf
-    for a, b in edges:
-        if a < a_prev or (a == a_prev and b < b_prev):
-            return False
-        a_prev = a
-        b_prev = b
-    return True
-
-
-for cc in nx.connected_components(pep2prot):
-    if not graph_is_lexicographically_sorted(pep2prot.subgraph(cc).edges):
-        break
-
-pep2prot.subgraph(cc).edges
-
-all(
-    graph_is_lexicographically_sorted(pep2prot.subgraph(cc).edges)
-    for cc in nx.connected_components(pep2prot)
-)  # weird...
-
-
-all(map(graph_is_lexicographically_sorted, nx.connected_components(pep2prot)))
-
-
-# Create a subgraph SG based on a (possibly multigraph) G
-
-
-def induce(G, cc):
-    SG = G.__class__()
-    SG.add_nodes_from((n, G.nodes[n]) for n in cc)
-    if SG.is_multigraph():
-        SG.add_edges_from(
-            (n, nbr, key, d)
-            for n, nbrs in G.adj.items()
-            if n in cc
-            for nbr, keydict in nbrs.items()
-            if nbr in cc
-            for key, d in keydict.items()
-        )
-    else:
-        SG.add_edges_from(
-            (n, nbr, d)
-            for n, nbrs in G.adj.items()
-            if n in cc
-            for nbr, d in nbrs.items()
-            if nbr in cc
-        )
-    SG.graph.update(G.graph)
-    return SG
-
-
-induce(pep2prot, cc).edges
-CC.adj
-CC = pep2prot.subgraph(cc)
+get_protein_group_cover(edges)
 
 
 # CC = nx.subgraph(pep2prot, cc)
