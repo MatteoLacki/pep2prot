@@ -1,77 +1,18 @@
-import math
 import multiprocessing as mp
-from collections import Counter
-from math import inf
 
 import furious_fastas as ff
 import matplotlib.pyplot as plt
-import networkx as nx
-import numba
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
-from networkx.algorithms import bipartite
 
-from pep2prot.graph_ops import get_adjacency_matrix
+from pep2prot.graph_ops import (
+    check_groups_are_OK,
+    get_adjacency_matrix,
+    get_protein_group_cover,
+    get_protein_groups,
+    sparsify_adjacency_martrix,
+)
 from pep2prot.readers import SimpleReplace
-
-
-def max_degree_node(bipartite_graph: nx.Graph) -> tuple[int, int]:
-    if len(bipartite_graph) == 0:
-        return 0
-    degree = -1
-    most_covering_node = -1
-    for node in bipartite_graph.nodes:
-        if node >= 0:
-            node_deg = nx.degree(bipartite_graph, node)
-            if node_deg >= degree:
-                degree = node_deg
-                most_covering_node = node
-    assert most_covering_node != -1, "There were no proteins in the graph."
-    return most_covering_node, degree
-
-
-def get_protein_group_cover_greadily(bipartite_graph: nx.Graph) -> list[int]:
-    cover = []
-    peptides_to_cover = sum(n < 0 for n in bipartite_graph.nodes)
-    while peptides_to_cover > 0:
-        prot_id, degree = max_degree_node(bipartite_graph)
-        cover.append(prot_id)
-        peptides_to_cover -= degree
-        for pep_id in list(bipartite_graph[prot_id]):
-            bipartite_graph.remove_node(pep_id)
-        bipartite_graph.remove_node(prot_id)
-
-    assert len(bipartite_graph.edges) == 0, "Graph still has some edges which is fishy."
-    return cover
-
-
-def graph_is_lexicographically_sorted(edges: list[int, int]) -> bool:
-    a_prev = -inf
-    b_prev = -inf
-    for a, b in edges:
-        if a < a_prev or (a == a_prev and b < b_prev):
-            return False
-        a_prev = a
-        b_prev = b
-    return True
-
-
-def get_protein_group_cover(edges: list[tuple[int, int]]) -> list[int]:
-    # only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
-    pep_prot_graph = nx.Graph(invert_peptide_indices(edges))
-    pep_prot_subgraphs = [
-        pep_prot_graph.subgraph(cc).copy()
-        for cc in nx.connected_components(pep_prot_graph)
-    ]
-    with mp.Pool(cpu_cnt) as pool:
-        covers = list(pool.map(get_protein_group_cover_greadily, pep_prot_subgraphs))
-
-    cover = [prot_id for cover in covers for prot_id in cover]
-    cover.sort()
-
-    return cover
-
 
 # THE AMOK OF SIMPLICITY
 min_number_of_peptides = 3
@@ -97,16 +38,15 @@ ms2rescore_input = ms2rescore_input[
         "protein_list",
     ]
 ]
-
-
 mods_bracket_anihilator = SimpleReplace()
 ms2rescore_input["raw_sequence"] = ms2rescore_input.peptide.map(
     mods_bracket_anihilator.apply
 )
 peptide_report = ms2rescore_input
+
+
 raw_sequences = list(set(ms2rescore_input["raw_sequence"]))
 adjacency_matrix = get_adjacency_matrix([f.sequence for f in fastas], raw_sequences)
-
 peptides_per_protein_cnt = adjacency_matrix.sum(axis=1)
 protein_groups = get_protein_groups(np.packbits(adjacency_matrix, axis=-1))
 assert check_groups_are_OK(protein_groups, adjacency_matrix)
