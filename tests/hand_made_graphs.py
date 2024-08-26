@@ -1,14 +1,53 @@
 from pep2prot.graph_ops import get_minimal_protein_group_coverage
-from pep2prot.readers import read_ms2rescore_peptide_report
 
-fastas_path = "data/Human_2024_02_16_UniProt_Taxon9606_Reviewed_20434entries_contaminant_tenzer.fasta"
-ms2rescore_input = "data/results.sage.ms2rescore.mokapot.peptides.txt"
 
-fastas = [(f.header.split(" ", 1)[0][1:], f.sequence) for f in ff.fastas(fastas_path)]
-peptide_report = read_ms2rescore_peptide_report(ms2rescore_input)
+def test_inference_works():
+    proteins = [
+        (
+            ">t|A",
+            "BRAAABBBZWE",
+        ),
+        (
+            ">t|B",
+            "DAAAABBBADA",
+        ),
+        (
+            ">t|C",
+            "WXVBBBASC",
+        ),
+        (
+            ">t|D",
+            "ABCBBBCCCDDDXYZ",
+        ),
+        (">t|E", "ZXCVBNM"),
+        (">t|F", "VBNMZXCV"),
+    ]
+    peptides = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
 
-covering_protein_groups = get_minimal_protein_group_coverage(
-    peptides=list(set(peptide_report.raw_sequence)),
-    fastas=fastas,
-    min_number_of_peptides=3,
-)
+    covering_protein_groups = get_minimal_protein_group_coverage(
+        peptides=peptides,
+        fastas=proteins,
+        min_number_of_peptides=1,
+    )
+
+    expected_covered_peps_count = len(
+        set(
+            pep
+            for pep in peptides
+            if any(pep in prot for prot_header, prot in proteins)
+        )
+    )
+    assert expected_covered_peps_count == len(
+        set(
+            pep
+            for covered_peps in covering_protein_groups.pep_ids
+            for pep in covered_peps
+        )
+    ), "Some peptides were not covered."
+
+    expected_proteins = set(
+        prot for prots in covering_protein_groups.accessions for prot in prots
+    )
+
+    for prot in (">t|C", ">t|E", ">t|F"):
+        assert prot not in expected_proteins

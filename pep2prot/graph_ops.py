@@ -231,6 +231,7 @@ def get_minimal_protein_group_coverage(
     """
     protein_sequences = [sequence for header, sequence in fastas]
     proteins = pd.DataFrame({"header": [header for header, sequence in fastas]})
+    assert len(set(proteins.header)) == len(proteins), "Protein headers are not unique."
     proteins.index.name = "prot_id"
     adjacency_matrix = get_adjacency_matrix(protein_sequences, peptides)
     proteins["peptide_cnt"] = adjacency_matrix.sum(axis=1)
