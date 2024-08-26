@@ -29,6 +29,7 @@ setup(
         "numba",
         "numba-progress",
         "tqdm",
+        "duckdb",
     ],
     # include_package_data=True,
     # package_data={
