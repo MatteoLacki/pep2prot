@@ -3,21 +3,24 @@ import multiprocessing as mp
 from collections import Counter
 from math import inf
 
-import furious_fastas as ff
 import networkx as nx
 import numba
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+import furious_fastas as ff
+from numba_progress import ProgressBar
 from pep2prot.misc import asserting_unique
 from pep2prot.numpy_ops import check_arrays_equal, check_vecs_the_same
+from tqdm import tqdm
 
 
 @numba.njit(parallel=True)
 def get_adjacency_matrix(
     strings: list[str],
     substrings: list[str],
+    progres_proxy: ProgressBar,
     _padding: int = 64,
 ) -> npt.NDArray:
     """
@@ -33,9 +36,11 @@ def get_adjacency_matrix(
         ),
         dtype=np.bool_,
     )
+
     for string_id in numba.prange(len(strings)):
         for substring_id, substring in enumerate(substrings):
             res[string_id, substring_id] = substring in strings[string_id]
+            progres_proxy.update(1)
     return res
 
 
@@ -198,6 +203,7 @@ def graph_is_lexicographically_sorted(edges: list[int, int]) -> bool:
 def get_protein_group_covers(
     edges: list[tuple[int, int]],
     cpu_cnt: int = mp.cpu_count(),
+    _progressbar_msg: str = "Covering Peptides with Protein Groups",
 ) -> list[list[int]]:
     # only need to change peps to -1-pep cause inverted peptides can be discarded after properly named protein groups forming a cover are selected
     pep_prot_graph = nx.Graph(invert_peptide_indices(edges))
@@ -205,6 +211,8 @@ def get_protein_group_covers(
         pep_prot_graph.subgraph(cc).copy()
         for cc in nx.connected_components(pep_prot_graph)
     ]
+    if _progressbar_msg != "":
+        pep_prot_subgraphs = tqdm(pep_prot_subgraphs, desc=_progressbar_msg)
     with mp.Pool(cpu_cnt) as pool:
         covers = list(pool.map(get_protein_group_cover_greadily, pep_prot_subgraphs))
 
@@ -233,7 +241,13 @@ def get_minimal_protein_group_coverage(
     proteins = pd.DataFrame({"header": [header for header, sequence in fastas]})
     assert len(set(proteins.header)) == len(proteins), "Protein headers are not unique."
     proteins.index.name = "prot_id"
-    adjacency_matrix = get_adjacency_matrix(protein_sequences, peptides)
+    with ProgressBar(
+        total=len(proteins) * len(peptides), desc="Getting Adjacency Matrix"
+    ) as progres_proxy:
+        adjacency_matrix = get_adjacency_matrix(
+            protein_sequences, peptides, progres_proxy
+        )
+
     proteins["peptide_cnt"] = adjacency_matrix.sum(axis=1)
     # optimization: first filter by peptide counts first.
     proteins["group"] = get_protein_groups(np.packbits(adjacency_matrix, axis=-1))
@@ -276,7 +290,9 @@ def get_minimal_protein_group_coverage(
         PG_adjmat, protein_groups.repr_prot_id.to_numpy()
     )
     protein_representatives_covers = get_protein_group_covers(
-        prot_pep_edges, cpu_cnt=cpu_cnt
+        prot_pep_edges,
+        cpu_cnt=cpu_cnt,
+        _progressbar_msg="Covering Peptides with Protein Groups",
     )
 
     PG_covering_connected_component_dist = Counter(

@@ -1,12 +1,6 @@
-
-%load_ext autoreload
-%autoreload 2
-import pandas as pd
-
 import furious_fastas as ff
-from numba_progress import ProgressBar
-from pep2prot.graph_ops import (get_adjacency_matrix,
-                                get_minimal_protein_group_coverage)
+
+from pep2prot.graph_ops import get_minimal_protein_group_coverage
 from pep2prot.readers import read_ms2rescore_peptide_report
 
 fastas_path = "data/Human_2024_02_16_UniProt_Taxon9606_Reviewed_20434entries_contaminant_tenzer.fasta"
@@ -20,15 +14,3 @@ covering_protein_groups = get_minimal_protein_group_coverage(
     fastas=fastas,
     min_number_of_peptides=3,
 )
-
-
-# missing which peptides are covered.
-
-
-# comment: of course, merging peptides makes absolutely no sense in terms of a set cover. So we are right not to do so.
-# what now?
-# * Missing some form of reporting: for each peptide get a
-# * More adapters for different peptide reports
-# * Add the q-value calculations as preprocessing:
-#   * we need ion level ones
-# *

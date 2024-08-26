@@ -27,6 +27,8 @@ setup(
         "pandas",
         "furious_fastas",  # TODO: only need a fasta sequence reader really.
         "numba",
+        "numba-progress",
+        "tqdm",
     ],
     # include_package_data=True,
     # package_data={
