@@ -8,12 +8,12 @@ import numba
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from numba_progress import ProgressBar
+from tqdm import tqdm
 
 import furious_fastas as ff
-from numba_progress import ProgressBar
 from pep2prot.misc import asserting_unique
 from pep2prot.numpy_ops import check_arrays_equal, check_vecs_the_same
-from tqdm import tqdm
 
 
 @numba.njit(parallel=True)
@@ -224,7 +224,7 @@ def get_minimal_protein_group_coverage(
     fastas: list[tuple[str, str]],
     min_number_of_peptides: int = 3,
     cpu_cnt: int = mp.cpu_count(),
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, npt.NDArray]:
     """
     Get the approximate minimal protein group cover of submitted peptides.
 
@@ -235,7 +235,7 @@ def get_minimal_protein_group_coverage(
         cpu_cnt (int): Number of workers in a multiprocessing Pool to be used.
 
     Returns:
-        pd.DataFrame: A table containing protein groups in the greadily approximated minimal protein group cover.
+        tuple[pd.DataFrame, npt.NDArray]: A table containing protein groups in the greadily approximated minimal protein group cover and the adjacency matrix.
     """
     protein_sequences = [sequence for header, sequence in fastas]
     proteins = pd.DataFrame({"header": [header for header, sequence in fastas]})
@@ -317,4 +317,4 @@ def get_minimal_protein_group_coverage(
         for pep_cnt, pep_ids in zip(protein_groups.peptide_cnt, protein_groups.pep_ids)
     ), "Some peptide groups had different number of peptides than anticipated."
 
-    return protein_groups
+    return protein_groups, adjacency_matrix
