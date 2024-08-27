@@ -3,6 +3,7 @@
 import pandas as pd
 from numba_progress import ProgressBar
 
+import ahocorasick
 import furious_fastas as ff
 from pep2prot.graph_ops import (get_adjacency_matrix,
                                 get_minimal_protein_group_coverage)
@@ -18,3 +19,8 @@ covering_protein_groups = get_minimal_protein_group_coverage(
     fastas=fastas,
     min_number_of_peptides=3,
 )
+
+protein_sequences = [sequence for header, sequence in fastas]
+
+automaton = ahocorasick.Automaton()
+big_fasta = "_".join(protein_sequences)
