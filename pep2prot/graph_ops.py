@@ -176,7 +176,7 @@ def max_degree_node(bipartite_graph: nx.Graph) -> tuple[int, int]:
     return most_covering_node, degree
 
 
-def get_protein_group_cover_greadily(bipartite_graph: nx.Graph) -> list[int]:
+def get_protein_group_cover_greedily(bipartite_graph: nx.Graph) -> list[int]:
     cover = []
     peptides_to_cover = sum(n < 0 for n in bipartite_graph.nodes)
     while peptides_to_cover > 0:
@@ -216,7 +216,7 @@ def get_protein_group_covers(
     if _progressbar_msg != "":
         pep_prot_subgraphs = tqdm(pep_prot_subgraphs, desc=_progressbar_msg)
     with mp.Pool(cpu_cnt) as pool:
-        covers = list(pool.map(get_protein_group_cover_greadily, pep_prot_subgraphs))
+        covers = list(pool.map(get_protein_group_cover_greedily, pep_prot_subgraphs))
 
     return covers
 
@@ -239,7 +239,7 @@ def get_minimal_protein_group_coverage_slow(
         cpu_cnt (int): Number of workers in a multiprocessing Pool to be used.
 
     Returns:
-        tuple[pd.DataFrame, npt.NDArray]: A table containing protein groups in the greadily approximated minimal protein group cover and the adjacency matrix.
+        tuple[pd.DataFrame, npt.NDArray]: A table containing protein groups in the greedily approximated minimal protein group cover and the adjacency matrix.
     """
     protein_sequences = [sequence for header, sequence in fastas]
     proteins = pd.DataFrame({"header": [header for header, sequence in fastas]})
@@ -483,7 +483,7 @@ def get_protein_group_covers_2(
     if _progressbar_msg != "":
         pep_prot_subgraphs = tqdm(pep_prot_subgraphs, desc=_progressbar_msg)
     with mp.Pool(cpu_cnt) as pool:
-        covers = list(pool.map(get_protein_group_cover_greadily, pep_prot_subgraphs))
+        covers = list(pool.map(get_protein_group_cover_greedily, pep_prot_subgraphs))
 
     return covers
 
@@ -511,7 +511,7 @@ def get_minimal_protein_group_coverage_fast(
         _debug (bool): Return intermediate data structures.
 
     Returns:
-        pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, dict[int,list[int]], list[list[int]]] : A table containing protein groups in the greadily approximated minimal protein group cover. Optionally, that and a data frame with protein calculations results, the peptide-protein graph, and the list of covers per connected component.
+        pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, dict[int,list[int]], list[list[int]]] : A table containing protein groups in the greedily approximated minimal protein group cover. Optionally, that and a data frame with protein calculations results, the peptide-protein graph, and the list of covers per connected component.
     """
 
     proteins = pd.DataFrame({"header": [header for header, sequence in fastas]})
