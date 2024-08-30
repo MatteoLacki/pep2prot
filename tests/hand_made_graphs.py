@@ -1,4 +1,4 @@
-from pep2prot.graph_ops import get_minimal_protein_group_coverage
+from pep2prot.graph_ops2 import get_minimal_protein_group_coverage
 
 
 def test_inference_works():
